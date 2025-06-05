@@ -1,3 +1,9 @@
+using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.Shared.Domain.Repositories;
+using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -5,25 +11,33 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure Lower Case URLs
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
 
-// Add Controllers
-builder.Services.AddControllers();
+// Configure Kebab Case Route Naming Convention
+builder.Services.AddControllers(options => options.Conventions.Add(new KebabCaseRouteNamingConvention()));
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
 
-// Add Database Connection (COMMENTED FOR NOW)
+// Add Database Connection (COMMENTED - will implement in several weeks)
 // var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-// Verify Database Connection String (COMMENTED FOR NOW)
 // if (connectionString is null)
-//     // Stop the application if the connection string is not set.
 //     throw new Exception("Database connection string is not set.");
+// builder.Services.AddDbContext<AppDbContext>(options =>
+//     options.UseMySQL(connectionString));
 
-// TODO: Configure Database Context when you create your DbContext
-// For now, just ensure the connection string is available
+// Configure Dependency Injection for Shared (DB-related services commented for now)
+// builder.Services.AddScoped<IUnitOfWork, UnitOfWork>(); // Needs DB
+// builder.Services.AddScoped<IBaseRepository<Entity>, BaseRepository<Entity>>(); // Needs DB
 
 var app = builder.Build();
+
+// Database initialization (COMMENTED - will implement in several weeks)
+// using (var scope = app.Services.CreateScope())
+// {
+//     var services = scope.ServiceProvider;
+//     var context = services.GetRequiredService<AppDbContext>();
+//     context.Database.EnsureCreated();
+// }
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -39,7 +53,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Keep a simple endpoint for testing Osito Polar Platform!
-app.MapGet("/osito", () => "HI, I am Osito Polar Platform!")
+app.MapGet("/osito", () => "¡Hola! Soy el Osito Polar Platform 🐻‍❄️")
     .WithName("GetOsito");
 
 // Keep the weather forecast endpoint for testing
