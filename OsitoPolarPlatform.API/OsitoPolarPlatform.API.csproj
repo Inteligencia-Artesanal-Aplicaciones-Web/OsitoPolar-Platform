@@ -25,7 +25,6 @@
 
     <ItemGroup>
       <Folder Include="ServiceRequests\Application\" />
-      <Folder Include="ServiceRequests\Infrastructure\" />
     </ItemGroup>
 
 </Project>
