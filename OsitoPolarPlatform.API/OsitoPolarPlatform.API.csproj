@@ -23,4 +23,12 @@
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="8.1.2"/>
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="ServiceRequests\Application\" />
+      <Folder Include="ServiceRequests\Domain\Model\Aggregates\" />
+      <Folder Include="ServiceRequests\Domain\Model\Commands\" />
+      <Folder Include="ServiceRequests\Domain\Model\Queries\" />
+      <Folder Include="ServiceRequests\Infrastructure\" />
+    </ItemGroup>
+
 </Project>
