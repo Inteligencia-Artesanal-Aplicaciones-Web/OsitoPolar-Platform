@@ -1,0 +1,27 @@
+namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Resources;
+
+public record ServiceRequestResource(
+    int Id,
+    string OrderNumber,
+    string Title,
+    string Description,
+    string IssueDetails,
+    DateTimeOffset RequestTime,
+    string Status, 
+    string Priority,
+    string Urgency,
+    bool IsEmergency,
+    string ServiceType, 
+    UserResource? ReportedByUser,
+    EquipmentResource Equipment,
+    TechnicianResource? AssignedTechnician,
+    DateTimeOffset? ScheduledDate,
+    string TimeSlot,
+    string ServiceAddress,
+    DateTimeOffset? DesiredCompletionDate,
+    DateTimeOffset? ActualCompletionDate,
+    string ResolutionDetails,
+    string TechnicianNotes,
+    decimal? Cost,
+    int? CustomerFeedbackRating
+);
