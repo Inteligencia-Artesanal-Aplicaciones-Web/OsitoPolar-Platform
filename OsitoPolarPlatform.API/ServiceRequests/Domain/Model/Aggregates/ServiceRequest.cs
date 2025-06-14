@@ -6,7 +6,6 @@ using OsitoPolarPlatform.API.Technicians.Domain.Model.Entities;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects; 
 using System.ComponentModel.DataAnnotations.Schema; 
 
-namespace ACME.PolarBear.Platform.API.Services.Domain.Model.Entities
 {
     /// <summary>
     /// Represents a service request for a refrigeration equipment.
