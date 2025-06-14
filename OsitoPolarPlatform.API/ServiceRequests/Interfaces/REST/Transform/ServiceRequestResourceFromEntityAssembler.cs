@@ -1,6 +1,6 @@
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates.ACME.PolarBear.Platform.API.Services.Domain.Model.Entities;
 using OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Resources;
-using Microsoft.OpenApi.Extensions; 
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
+using Microsoft.OpenApi.Extensions;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Transform;
 
