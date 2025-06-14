@@ -1,4 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
+using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
@@ -28,16 +33,32 @@ builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
 // Configure Dependency Injection for Shared (DB-related services commented for now)
 // builder.Services.AddScoped<IUnitOfWork, UnitOfWork>(); // Needs DB
 // builder.Services.AddScoped<IBaseRepository<Entity>, BaseRepository<Entity>>(); // Needs DB
+// Add CORS Policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAllPolicy", 
+        policy => policy.AllowAnyOrigin()
+            .AllowAnyMethod().AllowAnyHeader());
+});
 
+// Dependency Injection
+
+// Shared Bounded Context
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Publishing Bounded Context
+builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
+builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
+builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
 var app = builder.Build();
 
-// Database initialization (COMMENTED - will implement in several weeks)
-// using (var scope = app.Services.CreateScope())
-// {
-//     var services = scope.ServiceProvider;
-//     var context = services.GetRequiredService<AppDbContext>();
-//     context.Database.EnsureCreated();
-// }
+//Database initialization (COMMENTED - will implement in several weeks)
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var context = services.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
