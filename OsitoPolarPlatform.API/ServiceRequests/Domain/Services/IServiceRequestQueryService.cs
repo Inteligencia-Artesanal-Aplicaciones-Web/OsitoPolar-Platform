@@ -1,4 +1,4 @@
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates.ACME.PolarBear.Platform.API.Services.Domain.Model.Entities;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Queries;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Domain.Services;

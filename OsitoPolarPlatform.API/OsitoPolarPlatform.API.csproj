@@ -24,7 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="ServiceRequests\Application\" />
+      <Folder Include="ServiceRequests\Application\Internal\QueryServices\" />
     </ItemGroup>
 
 </Project>
