@@ -1,9 +1,9 @@
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates.ACME.PolarBear.Platform.API.Services.Domain.Model.Entities;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
 using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Repositories;
 
