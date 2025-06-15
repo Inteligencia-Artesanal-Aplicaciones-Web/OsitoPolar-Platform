@@ -1,4 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
+using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
@@ -14,30 +19,37 @@ builder.Services.AddRouting(options => options.LowercaseUrls = true);
 // Configure Kebab Case Route Naming Convention
 builder.Services.AddControllers(options => options.Conventions.Add(new KebabCaseRouteNamingConvention()));
 
+// Configure Dependency Injection for Shared (DB-related services commented for now)
+// builder.Services.AddScoped<IUnitOfWork, UnitOfWork>(); // Needs DB
+// builder.Services.AddScoped<IBaseRepository<Entity>, BaseRepository<Entity>>(); // Needs DB
+
+// Shared Bounded Context
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Service Request Bounded Context
+builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
+builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
+builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
 
 // Add Database Connection (COMMENTED - will implement in several weeks)
-// var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-// if (connectionString is null)
-//     throw new Exception("Database connection string is not set.");
-// builder.Services.AddDbContext<AppDbContext>(options =>
-//     options.UseMySQL(connectionString));
-
-// Configure Dependency Injection for Shared (DB-related services commented for now)
-// builder.Services.AddScoped<IUnitOfWork, UnitOfWork>(); // Needs DB
-// builder.Services.AddScoped<IBaseRepository<Entity>, BaseRepository<Entity>>(); // Needs DB
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (connectionString is null)
+    throw new Exception("Database connection string is not set.");
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySQL(connectionString));
 
 var app = builder.Build();
 
 // Database initialization (COMMENTED - will implement in several weeks)
-// using (var scope = app.Services.CreateScope())
-// {
-//     var services = scope.ServiceProvider;
-//     var context = services.GetRequiredService<AppDbContext>();
-//     context.Database.EnsureCreated();
-// }
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var context = services.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
