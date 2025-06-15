@@ -114,8 +114,6 @@ public class WorkOrderCommandService(
         workOrder.AddCustomerFeedback(command.Rating, command.Comment);
         // workOrderRepository.Update(workOrder);
         await unitOfWork.CompleteAsync();
-
-        // TODO: Publish a domain event for technician rating if using MediatR/event bus.
         // if (workOrder.AssignedTechnicianId.HasValue) { /* publish event */ }
 
         return workOrder;

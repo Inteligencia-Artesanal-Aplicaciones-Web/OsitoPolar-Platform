@@ -31,7 +31,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="WorkOrders\Application\Internal\QueryServices\" />
       <Folder Include="WorkOrders\Infrastructure\Persistence\EFC\Configuration\" />
     </ItemGroup>
 
