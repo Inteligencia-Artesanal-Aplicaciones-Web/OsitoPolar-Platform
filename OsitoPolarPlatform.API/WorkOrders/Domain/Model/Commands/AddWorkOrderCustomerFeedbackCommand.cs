@@ -5,6 +5,5 @@ namespace OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
 /// </summary>
 public record AddWorkOrderCustomerFeedbackCommand(
     int WorkOrderId,
-    int Rating, 
-    string? Comment
-);
+    int Rating
+    );
