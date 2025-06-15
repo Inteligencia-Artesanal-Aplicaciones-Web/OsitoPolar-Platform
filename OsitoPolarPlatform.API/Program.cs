@@ -8,6 +8,11 @@ using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
+using OsitoPolarPlatform.API.WorkOrders.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
+using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.ServiceRequests.Application.Internal.CommandServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +35,12 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
+
+// Configure Dependency Injection for Work Orders Bounded Context (NEW)
+builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
+builder.Services.AddScoped<IWorkOrderCommandService, WorkOrderCommandService>();
+builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
