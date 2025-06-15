@@ -1,12 +1,11 @@
 namespace OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
 
-using OsitoPolarPlatform.API.Equipment.Domain.Model.Entities; 
-using OsitoPolarPlatform.API.Users.Domain.Model.Entities;     
-using OsitoPolarPlatform.API.Technicians.Domain.Model.Entities; 
+//using OsitoPolarPlatform.API.Equipment.Domain.Model.Entities; 
+//using OsitoPolarPlatform.API.Users.Domain.Model.Entities;     
+//using OsitoPolarPlatform.API.Technicians.Domain.Model.Entities; 
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects; 
 using System.ComponentModel.DataAnnotations.Schema; 
 
-{
     /// <summary>
     /// Represents a service request for a refrigeration equipment.
     /// </summary>
@@ -25,12 +24,12 @@ using System.ComponentModel.DataAnnotations.Schema;
         public EServiceType ServiceType { get; private set; } 
 
         
-        public int? ReportedByUserId { get; private set; } 
-        public User? ReportedByUser { get; private set; } 
+       // public int? ReportedByUserId { get; private set; } 
+       // public User? ReportedByUser { get; private set; } 
         public int EquipmentId { get; private set; } 
-        public Equipment.Domain.Model.Entities.Equipment Equipment { get; private set; } 
+        //public Equipment.Domain.Model.Entities.Equipment Equipment { get; private set; } 
         public int? AssignedTechnicianId { get; private set; } 
-        public Technician? AssignedTechnician { get; private set; } 
+        //public Technician? AssignedTechnician { get; private set; } 
         public DateTimeOffset? ScheduledDate { get; private set; } 
         public string TimeSlot { get; private set; } 
         public string ServiceAddress { get; private set; } 
@@ -79,7 +78,7 @@ using System.ComponentModel.DataAnnotations.Schema;
             IssueDetails = issueDetails;
             EquipmentId = equipmentId;
             ServiceType = serviceType; 
-            ReportedByUserId = reportedByUserId;
+            //ReportedByUserId = reportedByUserId;
             Priority = priority;
             Urgency = urgency;
             IsEmergency = isEmergency;
@@ -119,4 +118,3 @@ using System.ComponentModel.DataAnnotations.Schema;
             CustomerFeedbackRating = rating;
         }
     }
-}

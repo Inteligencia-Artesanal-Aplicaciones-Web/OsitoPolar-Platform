@@ -41,26 +41,26 @@ public static class ModelBuilderExtensions
         builder.Entity<ServiceRequest>().Property(sr => sr.Cost).HasColumnType("decimal(18,2)"); 
         builder.Entity<ServiceRequest>().Property(sr => sr.CustomerFeedbackRating);
 
-        builder.Entity<ServiceRequest>()
-            .HasOne<Equipment.Domain.Model.Entities.Equipment>(sr => sr.Equipment)
-            .WithMany() 
-            .HasForeignKey(sr => sr.EquipmentId)
-            .IsRequired()
-            .OnDelete(DeleteBehavior.Cascade); 
+       // builder.Entity<ServiceRequest>()
+       //     .HasOne<Equipment.Domain.Model.Entities.Equipment>(sr => sr.Equipment)
+       //     .WithMany() 
+       //     .HasForeignKey(sr => sr.EquipmentId)
+       //     .IsRequired()
+       //     .OnDelete(DeleteBehavior.Cascade); 
 
-        builder.Entity<ServiceRequest>()
-            .HasOne<User>(sr => sr.ReportedByUser)
-            .WithMany()
-            .HasForeignKey(sr => sr.ReportedByUserId)
-            .IsRequired(false) 
-            .OnDelete(DeleteBehavior.Restrict);
+        //builder.Entity<ServiceRequest>()
+        //    .HasOne<User>(sr => sr.ReportedByUser)
+        //    .WithMany()
+        //    .HasForeignKey(sr => sr.ReportedByUserId)
+        //    .IsRequired(false) 
+        //    .OnDelete(DeleteBehavior.Restrict);
 
-        builder.Entity<ServiceRequest>()
-            .HasOne<Technician>(sr => sr.AssignedTechnician)
-            .WithMany()
-            .HasForeignKey(sr => sr.AssignedTechnicianId)
-            .IsRequired(false) 
-            .OnDelete(DeleteBehavior.Restrict);
+        //builder.Entity<ServiceRequest>()
+        //    .HasOne<Technician>(sr => sr.AssignedTechnician)
+        //    .WithMany()
+        //    .HasForeignKey(sr => sr.AssignedTechnicianId)
+        //    .IsRequired(false) 
+        //    .OnDelete(DeleteBehavior.Restrict);
 
         
          builder.Entity<ServiceRequest>().Property(sr => sr.CreatedDate).HasColumnName("CreatedAt");

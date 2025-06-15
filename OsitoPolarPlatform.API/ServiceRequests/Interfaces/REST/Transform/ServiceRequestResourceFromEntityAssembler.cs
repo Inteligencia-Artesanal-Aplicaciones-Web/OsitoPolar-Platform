@@ -21,7 +21,7 @@ public static class ServiceRequestResourceFromEntityAssembler
             entity.IsEmergency,
             entity.ServiceType.ToString(),
             //entity.ReportedByUser != null ? UserResourceFromEntityAssembler.ToResourceFromEntity(entity.ReportedByUser) : null,
-            EquipmentResourceFromEntityAssembler.ToResourceFromEntity(entity.Equipment),
+            //EquipmentResourceFromEntityAssembler.ToResourceFromEntity(entity.Equipment),
             //entity.AssignedTechnician != null ? TechnicianResourceFromEntityAssembler.ToResourceFromEntity(entity.AssignedTechnician) : null,
             entity.ScheduledDate,
             entity.TimeSlot,

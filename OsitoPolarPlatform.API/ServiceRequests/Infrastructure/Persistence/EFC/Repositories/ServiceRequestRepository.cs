@@ -13,9 +13,9 @@ public class ServiceRequestRepository(AppDbContext context) : BaseRepository<Ser
     public async Task<IEnumerable<ServiceRequest>> FindByStatusAsync(EServiceRequestStatus status)
     {
         return await Context.Set<ServiceRequest>()
-            .Include(sr => sr.Equipment)
-            .Include(sr => sr.ReportedByUser)
-            .Include(sr => sr.AssignedTechnician)
+            //.Include(sr => sr.Equipment)
+            //.Include(sr => sr.ReportedByUser)
+            //.Include(sr => sr.AssignedTechnician)
             .Where(sr => sr.Status == status)
             .ToListAsync();
     }
@@ -23,9 +23,9 @@ public class ServiceRequestRepository(AppDbContext context) : BaseRepository<Ser
     public async Task<IEnumerable<ServiceRequest>> FindByEquipmentIdAsync(int equipmentId)
     {
         return await Context.Set<ServiceRequest>()
-            .Include(sr => sr.Equipment)
-            .Include(sr => sr.ReportedByUser)
-            .Include(sr => sr.AssignedTechnician)
+            //.Include(sr => sr.Equipment)
+            //.Include(sr => sr.ReportedByUser)
+            //.Include(sr => sr.AssignedTechnician)
             .Where(sr => sr.EquipmentId == equipmentId)
             .ToListAsync();
     }
@@ -33,9 +33,9 @@ public class ServiceRequestRepository(AppDbContext context) : BaseRepository<Ser
     public async Task<IEnumerable<ServiceRequest>> FindByAssignedTechnicianIdAsync(int technicianId)
     {
         return await Context.Set<ServiceRequest>()
-            .Include(sr => sr.Equipment)
-            .Include(sr => sr.ReportedByUser)
-            .Include(sr => sr.AssignedTechnician)
+            //.Include(sr => sr.Equipment)
+            //.Include(sr => sr.ReportedByUser)
+            //.Include(sr => sr.AssignedTechnician)
             .Where(sr => sr.AssignedTechnicianId == technicianId)
             .ToListAsync();
     }
@@ -49,18 +49,18 @@ public class ServiceRequestRepository(AppDbContext context) : BaseRepository<Ser
     public new async Task<ServiceRequest?> FindByIdAsync(int id)
     {
         return await Context.Set<ServiceRequest>()
-            .Include(sr => sr.Equipment)
-            .Include(sr => sr.ReportedByUser)
-            .Include(sr => sr.AssignedTechnician)
+            //.Include(sr => sr.Equipment)
+            //.Include(sr => sr.ReportedByUser)
+            //.Include(sr => sr.AssignedTechnician)
             .FirstOrDefaultAsync(sr => sr.Id == id);
     }
 
     public new async Task<IEnumerable<ServiceRequest>> ListAsync()
     {
         return await Context.Set<ServiceRequest>()
-            .Include(sr => sr.Equipment)
-            .Include(sr => sr.ReportedByUser)
-            .Include(sr => sr.AssignedTechnician)
+            //.Include(sr => sr.Equipment)
+            //.Include(sr => sr.ReportedByUser)
+            //.Include(sr => sr.AssignedTechnician)
             .ToListAsync();
     }
 }
