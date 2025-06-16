@@ -44,8 +44,8 @@ public static class ModelBuilderExtensions
         builder.Entity<WorkOrder>().Property(wo => wo.CustomerFeedbackRating); 
         builder.Entity<WorkOrder>().Property(wo => wo.FeedbackSubmissionDate); 
 
-        //builder.Entity<WorkOrder>().Property(wo => wo.CreatedDate).HasColumnName("CreatedAt");
-        //builder.Entity<WorkOrder>().Property(wo => wo.UpdatedDate).HasColumnName("UpdatedAt");
+        builder.Entity<WorkOrder>().Property(wo => wo.CreatedDate).HasColumnName("CreatedAt");
+        builder.Entity<WorkOrder>().Property(wo => wo.UpdatedDate).HasColumnName("UpdatedAt");
 
         // builder.Entity<WorkOrder>()
         //     .HasOne<EquipmentEntity>() 
