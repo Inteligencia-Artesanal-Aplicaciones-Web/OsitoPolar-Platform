@@ -42,7 +42,6 @@ public static class ModelBuilderExtensions
         builder.Entity<WorkOrder>().Property(wo => wo.Cost).HasColumnType("decimal(18,2)"); 
 
         builder.Entity<WorkOrder>().Property(wo => wo.CustomerFeedbackRating); 
-        builder.Entity<WorkOrder>().Property(wo => wo.CustomerFeedbackComment).HasMaxLength(1000); 
         builder.Entity<WorkOrder>().Property(wo => wo.FeedbackSubmissionDate); 
 
         //builder.Entity<WorkOrder>().Property(wo => wo.CreatedDate).HasColumnName("CreatedAt");

@@ -8,11 +8,11 @@ using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
+using OsitoPolarPlatform.API.WorkOrders.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.WorkOrders.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Repositories;
-using OsitoPolarPlatform.ServiceRequests.Application.Internal.CommandServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,7 +36,7 @@ builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>(
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
 
-// Configure Dependency Injection for Work Orders Bounded Context (NEW)
+// Configure Dependency Injection for Work Orders Bounded Context
 builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
 builder.Services.AddScoped<IWorkOrderCommandService, WorkOrderCommandService>();
 builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();

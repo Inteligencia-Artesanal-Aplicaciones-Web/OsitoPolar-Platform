@@ -10,11 +10,9 @@ namespace OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Repos
 /// EF Core implementation of IWorkOrderRepository using BaseRepository.
 /// </summary>
 
-public class WorkOrderRepository : BaseRepository<WorkOrder>, IWorkOrderRepository
+public class WorkOrderRepository(AppDbContext context) : BaseRepository<WorkOrder>(context), IWorkOrderRepository
 {
-    public WorkOrderRepository(AppDbContext context) : base(context)
-    {
-    }
+
     public async Task<WorkOrder?> FindByWorkOrderNumberAsync(string workOrderNumber)
     {
         return await Context.Set<WorkOrder>().FirstOrDefaultAsync(wo => wo.WorkOrderNumber == workOrderNumber);
