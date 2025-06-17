@@ -1,4 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.bc_technicians.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.bc_technicians.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.bc_technicians.Domain.Repositories;
+using OsitoPolarPlatform.API.bc_technicians.Domain.Services;
+using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
@@ -35,6 +40,11 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
+
+//technicians Bounded Context
+builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
+builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
+builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
 
 // Configure Dependency Injection for Work Orders Bounded Context
 builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
