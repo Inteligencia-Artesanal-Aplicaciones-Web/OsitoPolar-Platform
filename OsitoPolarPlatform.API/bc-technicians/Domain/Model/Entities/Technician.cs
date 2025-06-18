@@ -19,25 +19,23 @@ public class Technician
         Specialization = string.Empty;
         Phone = string.Empty;
         Email = string.Empty;
-        Rating = 0;
         Availability = string.Empty;
         CompanyId = 0;
     }
 
     
-    public Technician(string name, string specialization, string phone, string email, int rating, string availability, int companyId)
+    public Technician(string name, string specialization, string phone, string email, string availability, int companyId)
     {
         Name = name;
         Specialization = specialization;
         Phone = phone;
         Email = email;
-        Rating = rating;
         Availability = availability;
         CompanyId = companyId;
     }
     
     public Technician(CreateTechnicianCommand command)
-        : this(command.Name, command.Specialization, command.Phone, command.Email, command.Rating, command.Availability, command.CompanyId)
+        : this(command.Name, command.Specialization, command.Phone, command.Email, command.Availability, command.CompanyId)
     {
     }
     

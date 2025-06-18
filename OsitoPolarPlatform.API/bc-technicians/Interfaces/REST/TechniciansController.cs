@@ -11,7 +11,7 @@ namespace OsitoPolarPlatform.API.bc_technicians.Interfaces.REST;
 [ApiController]
 [Route("api/v1/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
-[SwaggerTag("Available Category Endpoints")]
+[SwaggerTag("Available Technician Endpoints")]
 
 public class TechniciansController(ITechnicianCommandService techniciansService,
     ITechnicianQueryService technicianQueryService) : ControllerBase
@@ -19,7 +19,7 @@ public class TechniciansController(ITechnicianCommandService techniciansService,
     [HttpPost]
     [SwaggerOperation(
         Summary = "Create Technician",
-        Description = "Creates a new technician in the system.",
+        Description = "Creates a new technician in the system. Rating is calculated automatically.",
         OperationId = "CreateTechnician")]
     [SwaggerResponse(StatusCodes.Status201Created, "Technician created", typeof(TechnicianResource))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "The technician could not be created")]
@@ -32,32 +32,29 @@ public class TechniciansController(ITechnicianCommandService techniciansService,
         {
             return BadRequest("The technician could not be created");
         }
-        var createdResource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician);
+        var createdResource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician, 0.0);
         return CreatedAtAction(nameof(GetTechnicianById), new { TechnicianId = createdResource.Id }, createdResource);
-        
+
     }
-    
+
     [HttpGet]
-    [SwaggerOperation( 
+    [SwaggerOperation(
         Summary = "Get All Technicians",
-        Description = "Returns a list of all technicians in the system.",
+        Description = "Returns a list of all technicians in the system. Note: AverageRating is 0.0 by default in resource, use GET /{id}/average-rating for actual average.",
         OperationId = "GetAllTechnicians")]
     [SwaggerResponse(StatusCodes.Status200OK, "List of technicians", typeof(IEnumerable<TechnicianResource>))]
     public async Task<IActionResult> GetAllTechnicians()
     {
         var getAllTechniciansQuery = new GetAllTechniciansQuery();
         var technicians = await technicianQueryService.Handle(getAllTechniciansQuery);
-        var resources = technicians.Select(TechnicianResourceFromEntityAssembler.ToResourceFromEntity).ToList();
+        var resources = technicians.Select(t => TechnicianResourceFromEntityAssembler.ToResourceFromEntity(t, 0.0)).ToList();
         return Ok(resources);
     }
 
-    
-    
-    
     [HttpGet("{technicianId:int}")]
     [SwaggerOperation(
         Summary = "Get Technician by Id",
-        Description = "Returns a technician by its unique identifier.",
+        Description = "Returns a technician by its unique identifier. Note: AverageRating is 0.0 by default in resource, use GET /{id}/average-rating for actual average.",
         OperationId = "GetTechnicianById")]
     [SwaggerResponse(StatusCodes.Status200OK, "Technician found", typeof(TechnicianResource))]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Technician not found")]
@@ -69,10 +66,31 @@ public class TechniciansController(ITechnicianCommandService techniciansService,
         {
             return NotFound();
         }
-        var resource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician);
+        var getAverageRatingQuery = new GetTechnicianAverageRatingQuery(technicianId);
+        var averageRating = await technicianQueryService.Handle(getAverageRatingQuery);
+
+        var resource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician, averageRating);
         return Ok(resource);
     }
-    
-    
-    
+
+    [HttpGet("{technicianId:int}/average-rating")]
+    [SwaggerOperation(
+        Summary = "Get Technician Average Rating",
+        Description = "Returns the calculated average customer feedback rating for a specific technician.",
+        OperationId = "GetTechnicianAverageRating")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Average rating found", typeof(double))]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Technician not found")]
+    public async Task<IActionResult> GetTechnicianAverageRating(int technicianId)
+    {
+        var getTechnicianByIdQuery = new GetTechnicianByIdQuery(technicianId);
+        var technician = await technicianQueryService.Handle(getTechnicianByIdQuery);
+        if (technician is null)
+        {
+            return NotFound();
+        }
+
+        var getAverageRatingQuery = new GetTechnicianAverageRatingQuery(technicianId);
+        var averageRating = await technicianQueryService.Handle(getAverageRatingQuery);
+        return Ok(averageRating);
+    }
 }

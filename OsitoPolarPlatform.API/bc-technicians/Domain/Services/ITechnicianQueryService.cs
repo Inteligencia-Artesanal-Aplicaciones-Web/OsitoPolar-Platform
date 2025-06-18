@@ -7,4 +7,5 @@ public interface ITechnicianQueryService
 {
     Task<Technician?> Handle(GetTechnicianByIdQuery query);
     Task<IEnumerable<Technician>> Handle(GetAllTechniciansQuery query);
+    Task<double> Handle(GetTechnicianAverageRatingQuery query);
 }

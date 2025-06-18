@@ -5,7 +5,6 @@ public record CreateTechnicianCommand(
     string Specialization,
     string Phone,
     string Email,
-    int Rating,
     string Availability,
     int CompanyId
 );

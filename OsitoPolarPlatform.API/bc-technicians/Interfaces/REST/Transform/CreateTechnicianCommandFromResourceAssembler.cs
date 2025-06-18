@@ -13,7 +13,6 @@ public static class CreateTechnicianCommandFromResourceAssembler
             resource.Specialization,
             resource.Phone,
             resource.Email,
-            resource.Rating,
             resource.Availability,
             resource.CompanyId
         );
