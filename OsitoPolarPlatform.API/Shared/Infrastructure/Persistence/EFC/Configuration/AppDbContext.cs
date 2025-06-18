@@ -1,9 +1,16 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using EntityFrameworkCore.CreatedUpdatedDate.Extensions;
+using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Configuration.Extensions;
+using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration.Extensions;
+using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Configuration.Extensions;
+using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Configuration.Extensions;
 
 namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 
+/// <summary>
+/// Application database context
+/// </summary>
 public class AppDbContext(DbContextOptions options) : DbContext(options)
 {
     protected override void OnConfiguring(DbContextOptionsBuilder builder)
@@ -17,7 +24,13 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
     {
         base.OnModelCreating(builder);
         
-        // Apply snake_case naming convention for database
+        // Apply ALL context configurations FIRST (in order)
+        builder.ApplyEquipmentConfiguration();       // Equipment Management
+        builder.ApplyServiceRequestConfiguration();  // Service Requests
+        builder.ApplyWorkOrderConfiguration();       // Work Orders
+        builder.ApplyTechnicianConfiguration();      // Technicians
+        
+        // Apply snake_case naming convention LAST (only once!)
         builder.UseSnakeCaseNamingConvention();
     }
 }
