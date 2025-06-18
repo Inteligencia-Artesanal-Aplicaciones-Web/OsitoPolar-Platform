@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using EntityFrameworkCore.CreatedUpdatedDate.Extensions;
+using OsitoPolarPlatform.API.Analytics.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration.Extensions;
@@ -26,6 +27,7 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
         
         // Apply ALL context configurations FIRST (in order)
         builder.ApplyEquipmentConfiguration();       // Equipment Management
+        builder.ApplyAnalyticsConfiguration();       // Analytics 
         builder.ApplyServiceRequestConfiguration();  // Service Requests
         builder.ApplyWorkOrderConfiguration();       // Work Orders
         builder.ApplyTechnicianConfiguration();      // Technicians
