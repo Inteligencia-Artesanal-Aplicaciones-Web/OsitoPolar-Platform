@@ -15,6 +15,8 @@ public static class CreateServiceRequestCommandFromResourceAssembler
             resource.Title,
             resource.Description,
             resource.IssueDetails,
+            resource.ClientId, 
+            resource.CompanyId,
             resource.EquipmentId,
             serviceType, 
             resource.ReportedByUserId,

@@ -4,6 +4,8 @@ public record CreateServiceRequestResource(
     string Title,
     string Description,
     string IssueDetails,
+    int ClientId, 
+    int CompanyId,
     int EquipmentId,
     string ServiceType,
     int? ReportedByUserId,
