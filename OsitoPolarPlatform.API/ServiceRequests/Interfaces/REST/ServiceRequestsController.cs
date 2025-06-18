@@ -1,73 +1,51 @@
 using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Queries;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
 using OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Transform;
 using Swashbuckle.AspNetCore.Annotations;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands; 
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST;
-
 /// <summary>
 /// REST API controller for managing Service Requests.
 /// </summary>
 /// <param name="serviceRequestCommandService">The command service for handling service request commands.</param>
 /// <param name="serviceRequestQueryService">The query service for handling service request queries.</param>
-[ApiController] 
-[Route("api/v1/[controller]")] 
-[Produces(MediaTypeNames.Application.Json)] 
-[SwaggerTag("Available Service Request Endpoints")] 
+/// 
+[ApiController]
+[Route("api/v1/[controller]")]
+[Produces(MediaTypeNames.Application.Json)]
+[SwaggerTag("Available Service Request Endpoints")]
 public class ServiceRequestsController(
     IServiceRequestCommandService serviceRequestCommandService,
-    IServiceRequestQueryService serviceRequestQueryService) : ControllerBase 
+    IServiceRequestQueryService serviceRequestQueryService) : ControllerBase
 {
-    /// <summary>
-    /// Gets a service request by its unique identifier.
-    /// </summary>
-    /// <param name="serviceRequestId">The unique identifier of the service request to retrieve.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing the service request resource if found, or a 404 Not Found response if not found.
-    /// </returns>
-    [HttpGet("{serviceRequestId:int}")] 
-    [SwaggerOperation(
-        Summary = "Get Service Request by Id",
-        Description = "Returns a service request by its unique identifier.",
-        OperationId = "GetServiceRequestById")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Service Request found", typeof(ServiceRequestResource))]
-    [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
-    public async Task<IActionResult> GetServiceRequestById([FromRoute] int serviceRequestId) 
-    {
-        var getServiceRequestByIdQuery = new GetServiceRequestByIdQuery(serviceRequestId);
-        var serviceRequest = await serviceRequestQueryService.Handle(getServiceRequestByIdQuery);
-        if (serviceRequest is null) return NotFound();
-        var resource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
-        return Ok(resource);
-    }
-
     /// <summary>
     /// Creates a new service request in the system.
     /// </summary>
-    /// <param name="resource">The resource containing the details of the service request to create.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing the created service request resource with a 201 Created status code, or a 400 Bad Request if the creation failed.
-    /// </returns>
-    [HttpPost] // Define una ruta POST para la creación
+    /// <param name="resource">The resource containing the service request details.</param>
+    /// <returns>The created service request resource.</returns>
+    [HttpPost]
     [SwaggerOperation(
-        Summary = "Create a new Service Request",
+        Summary = "Create Service Request",
         Description = "Creates a new service request in the system.",
         OperationId = "CreateServiceRequest")]
     [SwaggerResponse(StatusCodes.Status201Created, "Service Request created", typeof(ServiceRequestResource))]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Failed to create service request")]
-    public async Task<IActionResult> CreateServiceRequest([FromBody] CreateServiceRequestResource resource) 
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "The service request could not be created")]
+    public async Task<IActionResult> CreateServiceRequest([FromBody] CreateServiceRequestResource resource)
     {
         var createServiceRequestCommand = CreateServiceRequestCommandFromResourceAssembler.ToCommandFromResource(resource);
         var serviceRequest = await serviceRequestCommandService.Handle(createServiceRequestCommand);
-        if (serviceRequest is null) return BadRequest("Failed to create service request.");
+        if (serviceRequest is null)
+        {
+            return BadRequest("The service request could not be created");
+        }
         var createdResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
         return CreatedAtAction(nameof(GetServiceRequestById), new { serviceRequestId = createdResource.Id }, createdResource);
     }
+
     
     /// <summary>
     /// Updates an existing service request in the system.
@@ -93,15 +71,12 @@ public class ServiceRequestsController(
         var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(updatedServiceRequest);
         return Ok(updatedResource);
     }
-
-
+    
     /// <summary>
     /// Gets all service requests in the system.
     /// </summary>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing a list of all service requests as resources.
-    /// </returns>
-    [HttpGet] 
+    /// <returns>A list of all service requests.</returns>
+    [HttpGet]
     [SwaggerOperation(
         Summary = "Get All Service Requests",
         Description = "Returns a list of all service requests in the system.",
@@ -114,84 +89,130 @@ public class ServiceRequestsController(
         var resources = serviceRequests.Select(ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity).ToList();
         return Ok(resources);
     }
-    
+
     /// <summary>
-    /// Assigns a technician to a service request.
+    /// Gets a service request by its unique identifier.
     /// </summary>
-    /// <param name="serviceRequestId">The ID of the service request to assign a technician to.</param>
-    /// <param name="resource">The resource containing the ID of the technician to assign.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing the updated service request resource, or a 404 Not Found if the request does not exist.
-    /// </returns>
+    /// <param name="serviceRequestId">The ID of the service request to retrieve.</param>
+    /// <returns>The requested service request resource, if found.</returns>
+    [HttpGet("{serviceRequestId:int}")]
+    [SwaggerOperation(
+        Summary = "Get Service Request by Id",
+        Description = "Returns a service request by its unique identifier.",
+        OperationId = "GetServiceRequestById")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Service Request found", typeof(ServiceRequestResource))]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
+    public async Task<IActionResult> GetServiceRequestById(int serviceRequestId)
+    {
+        var getServiceRequestByIdQuery = new GetServiceRequestByIdQuery(serviceRequestId);
+        var serviceRequest = await serviceRequestQueryService.Handle(getServiceRequestByIdQuery);
+        if (serviceRequest is null)
+        {
+            return NotFound();
+        }
+        var resource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
+        return Ok(resource);
+    }
+
+    /// <summary>
+    /// Assigns a technician to a service request and updates its status.
+    /// </summary>
+    /// <param name="serviceRequestId">The ID of the service request.</param>
+    /// <param name="resource">The resource containing the technician ID.</param>
+    /// <returns>The updated service request resource.</returns>
     [HttpPut("{serviceRequestId:int}/assign-technician")]
     [SwaggerOperation(
         Summary = "Assign Technician to Service Request",
-        Description = "Assigns a technician to an existing service request.",
+        Description = "Assigns a technician to a service request, updating its status to Accepted and creating a Work Order.",
         OperationId = "AssignTechnicianToServiceRequest")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Technician assigned", typeof(ServiceRequestResource))]
-    [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request or Technician not found")]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Failed to assign technician")]
-    public async Task<IActionResult> AssignTechnicianToServiceRequest([FromRoute] int serviceRequestId, [FromBody] AssignTechnicianToServiceRequestResource resource)
+    [SwaggerResponse(StatusCodes.Status200OK, "Technician assigned successfully", typeof(ServiceRequestResource))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid request or technician already assigned")]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
+    public async Task<IActionResult> AssignTechnician(int serviceRequestId, [FromBody] AssignTechnicianToServiceRequestResource resource)
     {
-        var assignCommand = new AssignTechnicianToServiceRequestCommand(serviceRequestId, resource.TechnicianId);
-        var updatedServiceRequest = await serviceRequestCommandService.Handle(assignCommand);
-        if (updatedServiceRequest is null) return NotFound("Service Request or Technician not found.");
-        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(updatedServiceRequest);
+        var command = AssignTechnicianToServiceRequestCommandFromResourceAssembler.ToCommandFromResource(serviceRequestId, resource);
+        var serviceRequest = await serviceRequestCommandService.Handle(command);
+        if (serviceRequest == null)
+        {
+            return NotFound();
+        }
+        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
         return Ok(updatedResource);
     }
 
     /// <summary>
-    /// Updates the status of a service request.
+    /// Adds customer feedback to a resolved service request.
     /// </summary>
-    /// <param name="serviceRequestId">The ID of the service request to update.</param>
-    /// <param name="resource">The resource containing the new status.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing the updated service request resource, or a 404 Not Found if the request does not exist.
-    /// </returns>
-    [HttpPut("{serviceRequestId:int}/status")]
+    /// <param name="serviceRequestId">The ID of the service request.</param>
+    /// <param name="resource">The resource containing the rating.</param>
+    /// <returns>The updated service request resource.</returns>
+    [HttpPut("{serviceRequestId:int}/feedback")]
     [SwaggerOperation(
-        Summary = "Update Service Request Status",
-        Description = "Updates the status of an existing service request.",
-        OperationId = "UpdateServiceRequestStatus")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Service Request status updated", typeof(ServiceRequestResource))]
+        Summary = "Add Customer Feedback to Service Request",
+        Description = "Adds a customer feedback rating (1-5) to a resolved service request.",
+        OperationId = "AddCustomerFeedbackToServiceRequest")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Feedback added successfully", typeof(ServiceRequestResource))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid rating or service request not resolved")]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid status or failed to update status")]
-    public async Task<IActionResult> UpdateServiceRequestStatus([FromRoute] int serviceRequestId, [FromBody] UpdateServiceRequestStatusResource resource)
+    public async Task<IActionResult> AddCustomerFeedback(int serviceRequestId, [FromBody] AddCustomerFeedbackToServiceRequestResource resource)
     {
-        if (!Enum.TryParse(resource.NewStatus, true, out EServiceRequestStatus newStatusEnum))
+        var command = AddCustomerFeedbackToServiceRequestCommandFromResourceAssembler.ToCommandFromResource(serviceRequestId, resource);
+        var serviceRequest = await serviceRequestCommandService.Handle(command);
+        if (serviceRequest == null)
         {
-            return BadRequest("Invalid status value provided.");
+            return NotFound();
         }
-        var updateStatusCommand = new UpdateServiceRequestStatusCommand(serviceRequestId, newStatusEnum);
-        var updatedServiceRequest = await serviceRequestCommandService.Handle(updateStatusCommand);
-        if (updatedServiceRequest is null) return NotFound("Service Request not found.");
-        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(updatedServiceRequest);
+        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
+        return Ok(updatedResource);
+    }
+
+    /// <summary>
+    /// Rejects a pending service request.
+    /// </summary>
+    /// <param name="serviceRequestId">The ID of the service request to reject.</param>
+    /// <returns>The updated service request resource.</returns>
+    [HttpPut("{serviceRequestId:int}/reject")]
+    [SwaggerOperation(
+        Summary = "Reject Service Request",
+        Description = "Rejects a pending service request.",
+        OperationId = "RejectServiceRequest")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Service Request rejected successfully", typeof(ServiceRequestResource))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Service Request cannot be rejected from its current status")]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
+    public async Task<IActionResult> RejectServiceRequest(int serviceRequestId)
+    {
+        var command = new RejectServiceRequestCommand(serviceRequestId);
+        var serviceRequest = await serviceRequestCommandService.Handle(command);
+        if (serviceRequest == null)
+        {
+            return NotFound();
+        }
+        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
         return Ok(updatedResource);
     }
     
     /// <summary>
-    /// Adds customer feedback to a service request.
+    /// Cancels a pending or in-progress service request.
     /// </summary>
-    /// <param name="serviceRequestId">The ID of the service request.</param>
-    /// <param name="resource">The customer feedback details.</param>
+    /// <param name="serviceRequestId">The ID of the service request to cancel.</param>
     /// <returns>The updated service request resource.</returns>
-    [HttpPut("{serviceRequestId:int}/customer-feedback")]
+    [HttpPut("{serviceRequestId:int}/cancel")]
     [SwaggerOperation(
-        Summary = "Add Customer Feedback to Service Request",
-        Description = "Adds customer feedback rating to a service request.",
-        OperationId = "AddCustomerFeedback")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Customer feedback added", typeof(ServiceRequestResource))]
+        Summary = "Cancel Service Request",
+        Description = "Cancels a pending or in-progress service request.",
+        OperationId = "CancelServiceRequest")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Service Request cancelled successfully", typeof(ServiceRequestResource))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Service Request cannot be cancelled from its current status")]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Failed to add customer feedback")]
-    public async Task<IActionResult> AddCustomerFeedbackToServiceRequest([FromRoute] int serviceRequestId, [FromBody] AddCustomerFeedbackToServiceRequestResource resource)
+    public async Task<IActionResult> CancelServiceRequest(int serviceRequestId)
     {
-        var addFeedbackCommand = new AddCustomerFeedbackToServiceRequestCommand(
-            serviceRequestId,
-            resource.Rating
-        );
-        var updatedServiceRequest = await serviceRequestCommandService.Handle(addFeedbackCommand);
-        if (updatedServiceRequest is null) return NotFound("Service Request not found.");
-        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(updatedServiceRequest);
+        var command = new CancelServiceRequestCommand(serviceRequestId);
+        var serviceRequest = await serviceRequestCommandService.Handle(command);
+        if (serviceRequest == null)
+        {
+            return NotFound();
+        }
+        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
         return Ok(updatedResource);
     }
 }
