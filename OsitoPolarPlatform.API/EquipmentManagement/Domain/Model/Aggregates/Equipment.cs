@@ -27,11 +27,11 @@ public partial class Equipment
     public decimal OptimalTemperatureMin { get; private set; }
     public decimal OptimalTemperatureMax { get; private set; }
     public Entities.Location Location { get; private set; }
-    public ValueObjects.EnergyConsumption EnergyConsumption { get; private set; }
+    public Entities.EnergyConsumption EnergyConsumption { get; private set; }
     public int OwnerId { get; private set; }
     public string OwnerType { get; private set; }
     public EOwnershipType OwnershipType { get; private set; }
-    public ValueObjects.RentalInfo? RentalInfo { get; private set; }
+    public Entities.RentalInfo? RentalInfo { get; private set; }
     public string Notes { get; private set; }
 
     protected Equipment()
@@ -47,7 +47,7 @@ public partial class Equipment
         IsPoweredOn = true;
         InstallationDate = DateTimeOffset.UtcNow;
         Location = new Entities.Location();
-        EnergyConsumption = new ValueObjects.EnergyConsumption(0, "watts", 0);
+        EnergyConsumption = new Entities.EnergyConsumption();
         OwnerType = string.Empty;
         OwnershipType = EOwnershipType.Owned;
         Notes = string.Empty;
@@ -69,9 +69,9 @@ public partial class Equipment
         OptimalTemperatureMax = command.OptimalTemperatureMax;
         Location = new Entities.Location(command.LocationName, command.LocationAddress, 
                                command.LocationLatitude, command.LocationLongitude);
-        EnergyConsumption = new ValueObjects.EnergyConsumption(command.EnergyConsumptionCurrent, 
-                                                 command.EnergyConsumptionUnit, 
-                                                 command.EnergyConsumptionAverage);
+        EnergyConsumption = new Entities.EnergyConsumption(command.EnergyConsumptionCurrent, 
+            command.EnergyConsumptionUnit, 
+            command.EnergyConsumptionAverage);
         OwnerId = command.OwnerId;
         OwnerType = command.OwnerType;
         OwnershipType = Enum.Parse<EOwnershipType>(command.OwnershipType, true);
