@@ -1,7 +1,7 @@
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
 using Microsoft.EntityFrameworkCore;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Aggregates; 
-using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Aggregates; 
+using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Entities; 
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Configuration.Extensions;
 
