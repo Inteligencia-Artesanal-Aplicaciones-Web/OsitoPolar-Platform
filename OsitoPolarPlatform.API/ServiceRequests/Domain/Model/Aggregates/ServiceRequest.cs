@@ -19,6 +19,8 @@ public partial class ServiceRequest
     public bool IsEmergency { get; private set; }
     public EServiceType ServiceType { get; private set; }
 
+    public int ClientId { get; private set; } 
+    public int CompanyId { get; private set; }
     public int EquipmentId { get; private set; }
     public int? AssignedTechnicianId { get; private set; }
     public DateTimeOffset? ScheduledDate { get; private set; }
@@ -55,6 +57,8 @@ public partial class ServiceRequest
         string title,
         string description,
         string issueDetails,
+        int clientId,
+        int companyId,
         int equipmentId,
         EServiceType serviceType,
         EPriority priority = EPriority.Medium,
@@ -67,6 +71,8 @@ public partial class ServiceRequest
         Title = title;
         Description = description;
         IssueDetails = issueDetails;
+        ClientId = clientId;
+        CompanyId = companyId;
         EquipmentId = equipmentId;
         ServiceType = serviceType;
         Priority = priority;
