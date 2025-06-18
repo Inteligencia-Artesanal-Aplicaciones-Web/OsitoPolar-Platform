@@ -1,5 +1,5 @@
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.ValueObjects;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects; 
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
 
 namespace OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
 
@@ -18,7 +18,7 @@ public partial class WorkOrder
     public DateTimeOffset CreationTime { get; private set; }
     public EWorkOrderStatus Status { get; private set; }
     public EPriority Priority { get; private set; }
-    public int? AssignedTechnicianId { get; private set; }
+    public int? AssignedTechnicianId { get; private set; } 
     public DateTimeOffset? ScheduledDate { get; private set; }
     public string TimeSlot { get; private set; }
     public string ServiceAddress { get; private set; }
@@ -28,8 +28,8 @@ public partial class WorkOrder
     public string ResolutionDetails { get; private set; }
     public string TechnicianNotes { get; private set; }
     public decimal? Cost { get; private set; }
-    public int? CustomerFeedbackRating { get; private set; }
-    public DateTimeOffset? FeedbackSubmissionDate { get; private set; }
+    public int? CustomerFeedbackRating { get; private set; } 
+    public DateTimeOffset? FeedbackSubmissionDate { get; private set; } 
     public int EquipmentId { get; private set; }
     public EServiceType ServiceType { get; private set; }
 
@@ -54,7 +54,7 @@ public partial class WorkOrder
     }
 
     public WorkOrder(
-        int serviceRequestId,
+        int? serviceRequestId,
         string title,
         string description,
         string issueDetails,
@@ -76,6 +76,7 @@ public partial class WorkOrder
         TimeSlot = timeSlot;
         ServiceAddress = serviceAddress;
     }
+    
     public WorkOrder(
         string title,
         string description,
@@ -96,15 +97,20 @@ public partial class WorkOrder
         Priority = priority;
         ScheduledDate = scheduledDate;
         TimeSlot = timeSlot;
-        ServiceRequestId = null;
+        ServiceRequestId = null; 
     }
 
+    /// <summary>
+    /// Assigns a technician to the Work Order and updates its status.
+    /// </summary>
+    /// <param name="technicianId">The ID of the technician to assign.</param>
     public void AssignTechnician(int technicianId)
     {
         if (technicianId <= 0)
             throw new ArgumentException("Technician ID must be positive.", nameof(technicianId));
+        
+        AssignedTechnicianId = technicianId; 
 
-        AssignedTechnicianId = technicianId;
         if (Status == EWorkOrderStatus.Created)
         {
             Status = EWorkOrderStatus.Assigned;
@@ -137,14 +143,11 @@ public partial class WorkOrder
         Cost = cost;
         Status = EWorkOrderStatus.Resolved;
     }
-    public void AddCustomerFeedback(int rating)
+
+    public void SetCustomerFeedbackRating(int rating)
     {
         if (rating < 1 || rating > 5)
             throw new ArgumentOutOfRangeException(nameof(rating), "Rating must be between 1 and 5.");
-
-        if (Status != EWorkOrderStatus.Completed && Status != EWorkOrderStatus.Resolved)
-            throw new InvalidOperationException("Cannot add feedback to an uncompleted work order.");
-
         CustomerFeedbackRating = rating;
         FeedbackSubmissionDate = DateTimeOffset.UtcNow;
     }

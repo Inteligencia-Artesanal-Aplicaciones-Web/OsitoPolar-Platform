@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates; 
+using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Entities; 
+using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Aggregates; 
+
 
 namespace OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Configuration.Extensions;
 
@@ -47,11 +51,26 @@ public static class ModelBuilderExtensions
         builder.Entity<WorkOrder>().Property(wo => wo.CreatedDate).HasColumnName("CreatedAt");
         builder.Entity<WorkOrder>().Property(wo => wo.UpdatedDate).HasColumnName("UpdatedAt");
 
-        // builder.Entity<WorkOrder>()
-        //     .HasOne<EquipmentEntity>() 
-        //     .WithMany()
-        //     .HasForeignKey(wo => wo.EquipmentId)
-        //     .IsRequired()
-        //     .OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<WorkOrder>()
+            .HasOne<ServiceRequest>() 
+            .WithMany() 
+            .HasForeignKey(wo => wo.ServiceRequestId) 
+            .IsRequired(false) 
+            .OnDelete(DeleteBehavior.SetNull); 
+        
+        builder.Entity<WorkOrder>()
+            .HasOne<Technician>() 
+            .WithMany() 
+            .HasForeignKey(wo => wo.AssignedTechnicianId) 
+            .IsRequired(false) 
+            .OnDelete(DeleteBehavior.SetNull); 
+        
+        builder.Entity<WorkOrder>()
+            .HasOne<Equipment>() 
+            .WithMany() 
+            .HasForeignKey(wo => wo.EquipmentId) 
+            .IsRequired(); 
+            
+                                                  
     }
 }

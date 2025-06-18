@@ -2,9 +2,10 @@ using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.ValueObjects;
 
 namespace OsitoPolarPlatform.API.WorkOrders.Application.Internal.CommandServices;
 
@@ -17,7 +18,7 @@ public class WorkOrderCommandService(
     IUnitOfWork unitOfWork) : IWorkOrderCommandService
 {
     public async Task<WorkOrder?> Handle(CreateWorkOrderCommand command)
-    {
+    {   
         if (string.IsNullOrWhiteSpace(command.Title))
             throw new ArgumentException("Title is required.");
         if (string.IsNullOrWhiteSpace(command.Description))
@@ -34,7 +35,7 @@ public class WorkOrderCommandService(
             throw new ArgumentException("Priority is required.");
 
         WorkOrder workOrder;
-
+        
         if (command.ServiceRequestId.HasValue)
         {
             var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId.Value);
@@ -42,15 +43,16 @@ public class WorkOrderCommandService(
             {
                 throw new ArgumentException($"ServiceRequest with ID {command.ServiceRequestId.Value} not found.");
             }
-
+            
             var existingWorkOrder = await workOrderRepository.FindByServiceRequestIdAsync(serviceRequest.Id);
             if (existingWorkOrder != null)
             {
                 throw new InvalidOperationException($"A WorkOrder already exists for ServiceRequest ID {serviceRequest.Id}.");
             }
-
+            
             serviceRequest.UpdateStatus(EServiceRequestStatus.Accepted);
-
+            serviceRequestRepository.Update(serviceRequest); 
+            
             workOrder = new WorkOrder(
                 serviceRequest.Id, 
                 command.Title,
@@ -79,8 +81,8 @@ public class WorkOrderCommandService(
             );
         }
 
-        await workOrderRepository.AddAsync(workOrder);
-        await unitOfWork.CompleteAsync();
+        await workOrderRepository.AddAsync(workOrder); 
+        await unitOfWork.CompleteAsync(); 
 
         return workOrder;
     }
@@ -88,22 +90,57 @@ public class WorkOrderCommandService(
     public async Task<WorkOrder?> Handle(UpdateWorkOrderStatusCommand command)
     {
         var workOrder = await workOrderRepository.FindByIdAsync(command.WorkOrderId);
-        if (workOrder is null) return null;
+        if (workOrder == null) return null;
 
         workOrder.UpdateStatus(command.NewStatus);
+        
+        if (workOrder.ServiceRequestId.HasValue)
+        {
+            var serviceRequest = await serviceRequestRepository.FindByIdAsync(workOrder.ServiceRequestId.Value);
+            if (serviceRequest != null)
+            {
+                EServiceRequestStatus newServiceRequestStatus;
+                switch (command.NewStatus)
+                {
+                    case EWorkOrderStatus.Created:
+                        break;
+                    case EWorkOrderStatus.Assigned:
+                        break;
+                    case EWorkOrderStatus.InProgress:
+                        newServiceRequestStatus = EServiceRequestStatus.InProgress;
+                        serviceRequest.UpdateStatus(newServiceRequestStatus);
+                        serviceRequestRepository.Update(serviceRequest); 
+                        break;
+                    case EWorkOrderStatus.OnHold:
+                        break;
+                    case EWorkOrderStatus.Completed:
+                    case EWorkOrderStatus.Resolved:
+                        newServiceRequestStatus = EServiceRequestStatus.Resolved;
+                        serviceRequest.UpdateStatus(newServiceRequestStatus);
+                        serviceRequestRepository.Update(serviceRequest); 
+                        break;
+                    case EWorkOrderStatus.Cancelled:
+                        newServiceRequestStatus = EServiceRequestStatus.Cancelled;
+                        serviceRequest.UpdateStatus(newServiceRequestStatus);
+                        serviceRequestRepository.Update(serviceRequest); 
+                        break;
+                }
+            }
+        }
+
+        workOrderRepository.Update(workOrder); 
         await unitOfWork.CompleteAsync();
+
         return workOrder;
     }
 
     public async Task<WorkOrder?> Handle(AssignTechnicianToWorkOrderCommand command)
     {
         var workOrder = await workOrderRepository.FindByIdAsync(command.WorkOrderId);
-        if (workOrder is null) return null;
-
-        if (command.TechnicianId <= 0)
-            throw new ArgumentException("Technician ID must be a positive integer.");
+        if (workOrder == null) return null;
 
         workOrder.AssignTechnician(command.TechnicianId);
+        workOrderRepository.Update(workOrder); 
         await unitOfWork.CompleteAsync();
         return workOrder;
     }
@@ -111,27 +148,26 @@ public class WorkOrderCommandService(
     public async Task<WorkOrder?> Handle(AddWorkOrderResolutionDetailsCommand command)
     {
         var workOrder = await workOrderRepository.FindByIdAsync(command.WorkOrderId);
-        if (workOrder is null) return null;
-
-        if (string.IsNullOrWhiteSpace(command.ResolutionDetails))
-            throw new ArgumentException("Resolution Details are required.");
+        if (workOrder == null) return null;
 
         workOrder.AddResolutionDetails(command.ResolutionDetails, command.TechnicianNotes, command.Cost);
+        workOrderRepository.Update(workOrder); 
+        
+        if (workOrder.ServiceRequestId.HasValue)
+        {
+            var serviceRequest = await serviceRequestRepository.FindByIdAsync(workOrder.ServiceRequestId.Value);
+            if (serviceRequest != null)
+            {
+                if (workOrder.Status == EWorkOrderStatus.Resolved)
+                {
+                    EServiceRequestStatus newServiceRequestStatus = EServiceRequestStatus.Resolved;
+                    serviceRequest.UpdateStatus(newServiceRequestStatus);
+                    serviceRequestRepository.Update(serviceRequest); 
+                }
+            }
+        }
+
         await unitOfWork.CompleteAsync();
-        return workOrder;
-    }
-
-    public async Task<WorkOrder?> Handle(AddWorkOrderCustomerFeedbackCommand command)
-    {
-        var workOrder = await workOrderRepository.FindByIdAsync(command.WorkOrderId);
-        if (workOrder is null) return null;
-
-        if (command.Rating < 1 || command.Rating > 5)
-            throw new ArgumentOutOfRangeException(nameof(command.Rating), "Rating must be between 1 and 5.");
-
-        workOrder.AddCustomerFeedback(command.Rating);
-        await unitOfWork.CompleteAsync();
-
         return workOrder;
     }
 }

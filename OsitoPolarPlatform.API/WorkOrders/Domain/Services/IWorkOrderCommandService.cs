@@ -9,9 +9,8 @@ namespace OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 public interface IWorkOrderCommandService
 {
     Task<WorkOrder?> Handle(CreateWorkOrderCommand command);
-    Task<WorkOrder?> Handle(UpdateWorkOrderStatusCommand command);
-    Task<WorkOrder?> Handle(AssignTechnicianToWorkOrderCommand command);
-    Task<WorkOrder?> Handle(AddWorkOrderResolutionDetailsCommand command);
-    Task<WorkOrder?> Handle(AddWorkOrderCustomerFeedbackCommand command);
+    Task<WorkOrder?> Handle(UpdateWorkOrderStatusCommand command); 
+    Task<WorkOrder?> Handle(AssignTechnicianToWorkOrderCommand command); 
+    Task<WorkOrder?> Handle(AddWorkOrderResolutionDetailsCommand command); 
     //Task<WorkOrder?> Handle(UpdateWorkOrderDetailsCommand command);
 }
