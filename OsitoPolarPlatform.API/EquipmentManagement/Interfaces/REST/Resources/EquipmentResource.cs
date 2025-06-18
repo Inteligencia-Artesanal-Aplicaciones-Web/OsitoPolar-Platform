@@ -1,0 +1,34 @@
+﻿namespace OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST.Resources;
+
+/// <summary>
+/// Resource for representing Equipment in API responses.
+/// </summary>
+public record EquipmentResource(
+    int Id,
+    string Name,
+    string Type,
+    string Model,
+    string Manufacturer,
+    string SerialNumber,
+    string Code,
+    decimal Cost,
+    string TechnicalDetails,
+    string Status,
+    bool IsPoweredOn,
+    DateTimeOffset InstallationDate,
+    decimal CurrentTemperature,
+    decimal SetTemperature,
+    decimal OptimalTemperatureMin,
+    decimal OptimalTemperatureMax,
+    string LocationName,
+    string LocationAddress,
+    decimal LocationLatitude,
+    decimal LocationLongitude,
+    decimal EnergyConsumptionCurrent,
+    string EnergyConsumptionUnit,
+    decimal EnergyConsumptionAverage,
+    int OwnerId,
+    string OwnerType,
+    string OwnershipType,
+    string Notes
+);
