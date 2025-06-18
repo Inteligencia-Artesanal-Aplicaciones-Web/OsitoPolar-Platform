@@ -1,8 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.ValueObjects;
+
 namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Resources;
 
-/// <summary>
-/// Resource for updating only the status of a WorkOrder.
-/// </summary>
-public record UpdateWorkOrderStatusResource(
-    string NewStatus 
-);
+public class UpdateWorkOrderStatusResource
+{
+    [Required]
+    public EWorkOrderStatus NewStatus { get; set; } 
+}
