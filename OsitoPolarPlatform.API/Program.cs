@@ -3,7 +3,12 @@ using OsitoPolarPlatform.API.bc_technicians.Application.Internal.CommandServices
 using OsitoPolarPlatform.API.bc_technicians.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Repositories;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Services;
-using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Repositories;
+using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.EquipmentManagement.Domain.Services;
+using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
@@ -45,6 +50,10 @@ builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryServi
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
 builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
 builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
+//Equipment Bounded Context
+builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
+builder.Services.AddScoped<IEquipmentCommandService, EquipmentCommandService>();
+builder.Services.AddScoped<IEquipmentQueryService, EquipmentQueryService>();
 
 // Configure Dependency Injection for Work Orders Bounded Context
 builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
