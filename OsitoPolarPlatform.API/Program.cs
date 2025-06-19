@@ -23,7 +23,11 @@ using OsitoPolarPlatform.API.WorkOrders.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Repositories;
-
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Repositories;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -60,6 +64,10 @@ builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
 builder.Services.AddScoped<IWorkOrderCommandService, WorkOrderCommandService>();
 builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
 
+// Subscriptions and Payments Bounded Context
+builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
+builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
