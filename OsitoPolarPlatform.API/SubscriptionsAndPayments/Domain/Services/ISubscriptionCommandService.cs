@@ -1,0 +1,9 @@
+﻿using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Commands;
+
+namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
+
+public interface ISubscriptionCommandService
+{
+    Task<Subscription?> Handle(UpgradePlanCommand command);
+}
