@@ -1,7 +1,9 @@
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
+using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Aggregates; 
+using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Entities; 
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Configuration.Extensions;
-using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Extensions for configuring the Entity Framework Core model builder for the Service Request context.
@@ -16,7 +18,6 @@ public static class ModelBuilderExtensions
     /// </param>
     public static void ApplyServiceRequestConfiguration(this ModelBuilder builder)
     {
-        // ServiceRequest Entity Configuration
         builder.Entity<ServiceRequest>().HasKey(sr => sr.Id);
         builder.Entity<ServiceRequest>().Property(sr => sr.Id).IsRequired().ValueGeneratedOnAdd();
         builder.Entity<ServiceRequest>().Property(sr => sr.OrderNumber).IsRequired().HasMaxLength(50);
@@ -41,29 +42,40 @@ public static class ModelBuilderExtensions
         builder.Entity<ServiceRequest>().Property(sr => sr.Cost).HasColumnType("decimal(18,2)"); 
         builder.Entity<ServiceRequest>().Property(sr => sr.CustomerFeedbackRating);
 
-       // builder.Entity<ServiceRequest>()
-       //     .HasOne<Equipment.Domain.Model.Entities.Equipment>(sr => sr.Equipment)
-       //     .WithMany() 
-       //     .HasForeignKey(sr => sr.EquipmentId)
-       //     .IsRequired()
-       //     .OnDelete(DeleteBehavior.Cascade); 
+        
+        builder.Entity<ServiceRequest>()
+            .HasOne<Equipment>() 
+            .WithMany() 
+            .HasForeignKey(sr => sr.EquipmentId) 
+            .IsRequired(); 
+            // .OnDelete(DeleteBehavior.Restrict);
+                                              
 
-        //builder.Entity<ServiceRequest>()
-        //    .HasOne<User>(sr => sr.ReportedByUser)
-        //    .WithMany()
-        //    .HasForeignKey(sr => sr.ReportedByUserId)
-        //    .IsRequired(false) 
-        //    .OnDelete(DeleteBehavior.Restrict);
-
-        //builder.Entity<ServiceRequest>()
-        //    .HasOne<Technician>(sr => sr.AssignedTechnician)
-        //    .WithMany()
-        //    .HasForeignKey(sr => sr.AssignedTechnicianId)
-        //    .IsRequired(false) 
-        //    .OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ServiceRequest>()
+            .HasOne<Technician>() 
+            .WithMany()
+            .HasForeignKey(sr => sr.AssignedTechnicianId) 
+            .IsRequired(false) 
+            .OnDelete(DeleteBehavior.SetNull); 
 
         
-         builder.Entity<ServiceRequest>().Property(sr => sr.CreatedDate).HasColumnName("CreatedAt");
-         builder.Entity<ServiceRequest>().Property(sr => sr.UpdatedDate).HasColumnName("UpdatedAt");
+        //builder.Entity<ServiceRequest>()
+        //    .HasOne<Client>() // O <User>
+        //    .WithMany()
+        //    .HasForeignKey(sr => sr.ClientId)
+        //    .IsRequired(); 
+        // .OnDelete(DeleteBehavior.Restrict);
+
+        
+       // builder.Entity<ServiceRequest>()
+       //     .HasOne<Company>()
+       //     .WithMany()
+       //     .HasForeignKey(sr => sr.CompanyId)
+       //     .IsRequired();
+        // .OnDelete(DeleteBehavior.Restrict);
+     
+
+        builder.Entity<ServiceRequest>().Property(sr => sr.CreatedDate).HasColumnName("CreatedAt");
+        builder.Entity<ServiceRequest>().Property(sr => sr.UpdatedDate).HasColumnName("UpdatedAt");
     }
 }

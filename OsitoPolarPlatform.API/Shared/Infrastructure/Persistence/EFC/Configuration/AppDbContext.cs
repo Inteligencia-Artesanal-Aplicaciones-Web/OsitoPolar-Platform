@@ -5,6 +5,7 @@ using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Conf
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Configuration.Extensions;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Configuration.Extensions;
 
 namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 
@@ -29,7 +30,7 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
         builder.ApplyServiceRequestConfiguration();  // Service Requests
         builder.ApplyWorkOrderConfiguration();       // Work Orders
         builder.ApplyTechnicianConfiguration();      // Technicians
-        
+        builder.ApplySubscriptionsConfiguration();  // Subscriptions and Payments
         // Apply snake_case naming convention LAST (only once!)
         builder.UseSnakeCaseNamingConvention();
     }

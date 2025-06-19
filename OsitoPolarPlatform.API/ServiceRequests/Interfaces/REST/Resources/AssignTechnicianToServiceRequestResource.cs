@@ -1,3 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Resources;
 
-public record AssignTechnicianToServiceRequestResource(int TechnicianId);
+public class AssignTechnicianToServiceRequestResource
+{
+    [Required]
+    public int TechnicianId { get; set; }
+}

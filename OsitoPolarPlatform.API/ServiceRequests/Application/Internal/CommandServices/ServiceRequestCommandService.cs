@@ -1,29 +1,28 @@
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 
-
 public class ServiceRequestCommandService(
     IServiceRequestRepository serviceRequestRepository,
+    IWorkOrderRepository workOrderRepository,
     IUnitOfWork unitOfWork) : IServiceRequestCommandService
 {
     public async Task<ServiceRequest?> Handle(CreateServiceRequestCommand command)
     {
-       
-        //if (await serviceRequestRepository.ExistsByOrderNumberAsync(command.OrderNumber))
-        //   throw new ArgumentException("Service request with this order number already exists.");
-       
         var serviceRequest = new ServiceRequest(
             command.Title,
             command.Description,
             command.IssueDetails,
+            command.ClientId, 
+            command.CompanyId,
             command.EquipmentId,
-            command.ServiceType, 
-            command.ReportedByUserId,
+            command.ServiceType,
             command.Priority,
             command.Urgency,
             command.IsEmergency,
@@ -33,11 +32,12 @@ public class ServiceRequestCommandService(
         );
 
         await serviceRequestRepository.AddAsync(serviceRequest);
-        await unitOfWork.CompleteAsync(); 
+        await unitOfWork.CompleteAsync();
 
         return serviceRequest;
     }
-
+    
+    
     public async Task<ServiceRequest?> Handle(UpdateServiceRequestCommand command)
     {
         var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.Id);
@@ -70,41 +70,74 @@ public class ServiceRequestCommandService(
     public async Task<ServiceRequest?> Handle(AssignTechnicianToServiceRequestCommand command)
     {
         var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId);
-        if (serviceRequest is null) return null;
+        if (serviceRequest == null) return null;
 
         serviceRequest.AssignTechnician(command.TechnicianId);
-        await unitOfWork.CompleteAsync();
+        serviceRequestRepository.Update(serviceRequest); 
+
+        var workOrder = new WorkOrder(
+            serviceRequest.Id,
+            serviceRequest.Title,
+            serviceRequest.Description,
+            serviceRequest.IssueDetails,
+           // command.ClientId,
+           // command.CompanyId,
+            serviceRequest.EquipmentId,
+            serviceRequest.ServiceType,
+            serviceRequest.Priority,
+            serviceRequest.ScheduledDate,
+            serviceRequest.TimeSlot,
+            serviceRequest.ServiceAddress
+        );
+        
+        workOrder.AssignTechnician(command.TechnicianId);
+        await workOrderRepository.AddAsync(workOrder);
+        await unitOfWork.CompleteAsync(); 
+
         return serviceRequest;
     }
-
-    public async Task<ServiceRequest?> Handle(UpdateServiceRequestStatusCommand command)
-    {
-        var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId);
-        if (serviceRequest is null) return null;
-
-        serviceRequest.UpdateStatus(command.NewStatus);
-        await unitOfWork.CompleteAsync();
-        return serviceRequest;
-    }
-
-    //public async Task<ServiceRequest?> Handle(AddResolutionDetailsToServiceRequestCommand command)
-    //{
-    //    var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId);
-    //    if (serviceRequest is null) return null;
-//
-    //    serviceRequest.AddResolutionDetails(command.ResolutionDetails, command.TechnicianNotes, command.Cost);
-    //    await unitOfWork.CompleteAsync();
-    //    return serviceRequest;
-    //}
 
     public async Task<ServiceRequest?> Handle(AddCustomerFeedbackToServiceRequestCommand command)
     {
         var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId);
-        if (serviceRequest is null) return null;
+        if (serviceRequest == null) return null;
 
         serviceRequest.AddCustomerFeedback(command.Rating);
+
+        var workOrder = await workOrderRepository.FindByServiceRequestIdAsync(serviceRequest.Id);
+        if (workOrder != null)
+        {
+            workOrder.SetCustomerFeedbackRating(command.Rating);
+            workOrderRepository.Update(workOrder); 
+        }
+
+        serviceRequestRepository.Update(serviceRequest); 
         await unitOfWork.CompleteAsync();
+
+        return serviceRequest;
+    }
+
+    public async Task<ServiceRequest?> Handle(RejectServiceRequestCommand command)
+    {
+        var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId);
+        if (serviceRequest == null) return null;
+
+        serviceRequest.Reject();
+        serviceRequestRepository.Update(serviceRequest); 
+        await unitOfWork.CompleteAsync();
+
+        return serviceRequest;
+    }
+
+    public async Task<ServiceRequest?> Handle(CancelServiceRequestCommand command)
+    {
+        var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId);
+        if (serviceRequest == null) return null;
+
+        serviceRequest.Cancel();
+        serviceRequestRepository.Update(serviceRequest); 
+        await unitOfWork.CompleteAsync();
+
         return serviceRequest;
     }
 }
-

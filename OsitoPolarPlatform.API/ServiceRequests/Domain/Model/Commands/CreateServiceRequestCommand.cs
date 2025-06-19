@@ -6,6 +6,8 @@ public record CreateServiceRequestCommand(
     string Title,
     string Description,
     string IssueDetails,
+    int ClientId,
+    int CompanyId,
     int EquipmentId,
     EServiceType ServiceType, 
     int? ReportedByUserId,

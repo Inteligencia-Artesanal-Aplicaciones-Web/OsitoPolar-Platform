@@ -5,7 +5,7 @@ namespace OsitoPolarPlatform.API.bc_technicians.Interfaces.REST.Transform;
 
 public static class TechnicianResourceFromEntityAssembler
 {
-    public static TechnicianResource ToResourceFromEntity(Technician entity)
+    public static TechnicianResource ToResourceFromEntity(Technician entity, double averageRating = 0.0) 
     {
         return new TechnicianResource
         (
@@ -14,7 +14,7 @@ public static class TechnicianResourceFromEntityAssembler
             entity.Specialization,
             entity.Phone,
             entity.Email,
-            entity.Rating,
+            averageRating,
             entity.Availability,
             entity.CompanyId
         );
