@@ -12,4 +12,5 @@ public interface IEquipmentCommandService
     Task<Equipment?> Handle(UpdateEquipmentTemperatureCommand command);
     Task<Equipment?> Handle(UpdateEquipmentPowerStateCommand command);
     Task<Equipment?> Handle(UpdateEquipmentLocationCommand command);
+    Task<bool> Handle(DeleteEquipmentCommand command);
 }
