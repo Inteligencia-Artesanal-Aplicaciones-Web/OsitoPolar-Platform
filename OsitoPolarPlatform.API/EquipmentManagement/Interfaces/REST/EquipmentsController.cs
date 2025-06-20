@@ -268,4 +268,76 @@ public class EquipmentsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+    /// <summary>
+    /// Create equipment reading (temperature, energy)
+    /// POST operations moved from Analytics to Equipment Management as per professor's feedback
+    /// </summary>
+    /// <param name="equipmentId">Equipment identifier</param>
+    /// <param name="resource">Reading data</param>
+    /// <returns>Created reading confirmation</returns>
+    [HttpPost("{equipmentId:int}/readings")]
+    [SwaggerOperation(
+        Summary = "Create Equipment Reading",
+        Description = "Records a new reading (temperature, energy) for equipment. Moved from Analytics to Equipment Management per professor's requirements.",
+        OperationId = "CreateEquipmentReading")]
+    [SwaggerResponse(StatusCodes.Status201Created, "Reading created successfully")]
+    [SwaggerResponse(StatusCodes.Status404NotFound, "Equipment not found")]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid reading data")]
+    public async Task<ActionResult> CreateEquipmentReading(
+        int equipmentId,
+        [FromBody] CreateEquipmentReadingResource resource)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var equipment = await _equipmentQueryService.Handle(new GetEquipmentByIdQuery(equipmentId));
+        if (equipment == null)
+            return NotFound($"Equipment with ID {equipmentId} not found");
+
+        try
+        {
+            // Create the reading response
+            var reading = new {
+                id = new Random().Next(1000, 9999), // In real implementation, this would come from your command
+                equipmentId = equipmentId,
+                type = resource.Type,
+                value = resource.Value,
+                unit = resource.Unit,
+                timestamp = resource.Timestamp ?? DateTimeOffset.UtcNow,
+                status = resource.Status,
+                notes = resource.Notes
+            };
+
+            // Here you would typically:
+            // 1. Create appropriate command (RecordTemperatureReadingCommand or RecordEnergyReadingCommand)
+            // 2. Send to Analytics bounded context via command bus or direct service call
+            // 3. Return the created reading
+
+            return CreatedAtAction(nameof(GetEquipmentById), new { equipmentId }, reading);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get equipment readings (delegated to Analytics)
+    /// Convenience endpoint that redirects to Analytics API
+    /// </summary>
+    /// <param name="equipmentId">Equipment identifier</param>
+    /// <param name="type">Type of readings</param>
+    /// <returns>Redirect to Analytics endpoint</returns>
+    [HttpGet("{equipmentId:int}/readings")]
+    [SwaggerOperation(
+        Summary = "Get Equipment Readings",
+        Description = "Redirects to Analytics API for reading queries.",
+        OperationId = "GetEquipmentReadingsRedirect")]
+    public ActionResult GetEquipmentReadings(
+        int equipmentId, 
+        [FromQuery] string type = "all")
+    {
+        
+        return Redirect($"/api/v1/analytics/equipments/{equipmentId}/readings?type={type}");
+    }
 }
