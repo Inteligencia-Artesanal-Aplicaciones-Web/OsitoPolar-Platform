@@ -28,7 +28,12 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.Internal.Query
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Repositories;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// CONFIGURACIÓN CRÍTICA PARA RENDER - Puerto dinámico
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 // Add services to the container.
 
@@ -38,9 +43,16 @@ builder.Services.AddRouting(options => options.LowercaseUrls = true);
 // Configure Kebab Case Route Naming Convention
 builder.Services.AddControllers(options => options.Conventions.Add(new KebabCaseRouteNamingConvention()));
 
-// Configure Dependency Injection for Shared (DB-related services commented for now)
-// builder.Services.AddScoped<IUnitOfWork, UnitOfWork>(); // Needs DB
-// builder.Services.AddScoped<IBaseRepository<Entity>, BaseRepository<Entity>>(); // Needs DB
+// Configure CORS para producción
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 // Shared Bounded Context
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -54,6 +66,7 @@ builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryServi
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
 builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
 builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
+
 //Equipment Bounded Context
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
 builder.Services.AddScoped<IEquipmentCommandService, EquipmentCommandService>();
@@ -68,11 +81,12 @@ builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
 
-// Add Database Connection (COMMENTED - will implement in several weeks)
+// Add Database Connection
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (connectionString is null)
     throw new Exception("Database connection string is not set.");
@@ -81,7 +95,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 var app = builder.Build();
 
-// Database initialization (COMMENTED - will implement in several weeks)
+// Database initialization
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -90,45 +104,27 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Habilitar Swagger en desarrollo Y producción para testing
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "OsitoPolar API V1");
+    c.RoutePrefix = string.Empty; // Swagger será la página principal
+});
 
-app.UseHttpsRedirection();
+// CRÍTICO: Comentar UseHttpsRedirection para Render
+// app.UseHttpsRedirection(); // <-- COMENTADO para Render
+
+// Usar CORS
+app.UseCors("AllowAll");
 
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Keep a simple endpoint for testing Osito Polar Platform!
-app.MapGet("/osito", () => "¡Hola! Soy el Osito Polar Platform 🐻‍❄️")
-    .WithName("GetOsito");
-
-// Keep the weather forecast endpoint for testing
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
+// Log para debugging
+Console.WriteLine($"🚀 Server starting on port: {port}");
+Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
+Console.WriteLine($"🔗 Connection String configured: {!string.IsNullOrEmpty(connectionString)}");
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
