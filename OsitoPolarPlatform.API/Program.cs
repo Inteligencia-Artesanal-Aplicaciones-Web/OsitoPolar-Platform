@@ -37,11 +37,8 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 // Add services to the container.
 
-// Configure Lower Case URLs
-builder.Services.AddRouting(options => options.LowercaseUrls = true);
-
-// Configure Kebab Case Route Naming Convention
-builder.Services.AddControllers(options => options.Conventions.Add(new KebabCaseRouteNamingConvention()));
+// Configure Controllers PRIMERO (sin convenciones de naming que pueden causar conflictos)
+builder.Services.AddControllers();
 
 // Configure CORS para producción
 builder.Services.AddCors(options =>
@@ -118,13 +115,18 @@ app.UseSwaggerUI(c =>
 // Usar CORS
 app.UseCors("AllowAll");
 
+// IMPORTANTE: Agregar UseRouting() antes de UseAuthorization()
+app.UseRouting();
+
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Log para debugging
+// Log para debugging - Agregar información de rutas
 Console.WriteLine($"🚀 Server starting on port: {port}");
 Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
 Console.WriteLine($"🔗 Connection String configured: {!string.IsNullOrEmpty(connectionString)}");
+Console.WriteLine($"📍 Swagger available at: http://0.0.0.0:{port}");
+Console.WriteLine($"📍 Equipment API available at: http://0.0.0.0:{port}/api/v1/equipments");
 
 app.Run();
