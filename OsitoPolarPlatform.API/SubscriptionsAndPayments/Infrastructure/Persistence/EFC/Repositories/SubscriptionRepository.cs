@@ -14,7 +14,14 @@ public class SubscriptionRepository : BaseRepository<Subscription>, ISubscriptio
 
     public async Task<Subscription?> FindByUserIdAsync(int userId)
     {
-        return await Context.Set<Subscription>()
-            .FirstOrDefaultAsync(s => s.Id == userId); // Placeholder logic; adjust based on your user-plan relationship
+        // SOLUCIÓN TEMPORAL: Para que funcione el flujo inicial
+        // En un sistema real, necesitarías una tabla UserSubscription o similar
+        
+        // Por ahora, retorna null para usuarios que no tienen suscripción activa
+        // Esto permitirá que el flujo de pago funcione correctamente
+        return null;
+        
+        
+        // return await Context.Set<Subscription>().FirstOrDefaultAsync(s => s.Id == 1);
     }
 }
