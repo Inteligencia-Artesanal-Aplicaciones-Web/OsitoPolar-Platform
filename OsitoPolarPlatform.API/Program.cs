@@ -36,24 +36,52 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CONFIGURACIÓN CRÍTICA PARA RENDER - Puerto dinámico
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+var isProduction = builder.Environment.IsProduction() || 
+                  Environment.GetEnvironmentVariable("RENDER") != null ||
+                  Environment.GetEnvironmentVariable("PORT") != null;
+
+
+if (isProduction)
+{
+    var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+    Console.WriteLine($" Production mode - Port: {port}");
+}
+else
+{
+    Console.WriteLine("🛠️  Development mode - http://localhost:5000");
+}
 
 // Add services to the container.
 
-// Configure Controllers PRIMERO (sin convenciones de naming que pueden causar conflictos)
-builder.Services.AddControllers();
+// Configure Lower Case URLs
+builder.Services.AddRouting(options => options.LowercaseUrls = true);
 
-// Configure CORS para producción
+// Configure Kebab Case Route Naming Convention
+builder.Services.AddControllers(options => options.Conventions.Add(new KebabCaseRouteNamingConvention()));
+
+// Configure CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    if (isProduction)
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
+        options.AddPolicy("AllowAll", policy =>
+        {
+            policy.AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        });
+    }
+    else
+    {
+        options.AddPolicy("AllowAll", policy =>
+        {
+            policy.WithOrigins("http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+        });
+    }
 });
 
 // Shared Bounded Context
@@ -63,22 +91,23 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
+
 // Analytics Bounded Context
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IAnalyticsCommandService, AnalyticsCommandService>();
 builder.Services.AddScoped<IAnalyticsQueryService, AnalyticsQueryService>();
 
-//technicians Bounded Context
+// Technicians Bounded Context
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
 builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
 builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
 
-//Equipment Bounded Context
+// Equipment Bounded Context
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
 builder.Services.AddScoped<IEquipmentCommandService, EquipmentCommandService>();
 builder.Services.AddScoped<IEquipmentQueryService, EquipmentQueryService>();
 
-// Configure Dependency Injection for Work Orders Bounded Context
+// Work Orders Bounded Context
 builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
 builder.Services.AddScoped<IWorkOrderCommandService, WorkOrderCommandService>();
 builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
@@ -88,7 +117,7 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
 
@@ -96,6 +125,7 @@ builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (connectionString is null)
     throw new Exception("Database connection string is not set.");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySQL(connectionString));
 
@@ -110,32 +140,45 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-// Habilitar Swagger en desarrollo Y producción para testing
+
+// Swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "OsitoPolar API V1");
-    c.RoutePrefix = string.Empty; // Swagger será la página principal
+    if (isProduction)
+    {
+        c.RoutePrefix = string.Empty; 
+    }
 });
 
-// CRÍTICO: Comentar UseHttpsRedirection para Render
-// app.UseHttpsRedirection(); // <-- COMENTADO para Render
 
-// Usar CORS
+if (!isProduction)
+{
+    app.UseHttpsRedirection();
+}
+
+// CORS
 app.UseCors("AllowAll");
 
-// IMPORTANTE: Agregar UseRouting() antes de UseAuthorization()
 app.UseRouting();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
-// Log para debugging - Agregar información de rutas
-Console.WriteLine($"🚀 Server starting on port: {port}");
+
 Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
 Console.WriteLine($"🔗 Connection String configured: {!string.IsNullOrEmpty(connectionString)}");
-Console.WriteLine($"📍 Swagger available at: http://0.0.0.0:{port}");
-Console.WriteLine($"📍 Equipment API available at: http://0.0.0.0:{port}/api/v1/equipments");
+
+if (isProduction)
+{
+    var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+    Console.WriteLine($"📍 Swagger: http://0.0.0.0:{port}");
+    Console.WriteLine($"📍 Equipment API: http://0.0.0.0:{port}/api/v1/equipments");
+}
+else
+{
+    Console.WriteLine($"📍 Swagger: http://localhost:5000/swagger");
+    Console.WriteLine($"📍 Equipment API: http://localhost:5000/api/v1/equipments");
+}
 
 app.Run();

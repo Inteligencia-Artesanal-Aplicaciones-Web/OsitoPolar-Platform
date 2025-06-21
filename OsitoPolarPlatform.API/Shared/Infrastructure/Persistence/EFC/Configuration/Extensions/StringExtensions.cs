@@ -1,4 +1,5 @@
-﻿using Humanizer;
+﻿using System.Text.RegularExpressions;
+using Humanizer;
 
 namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration.Extensions;
 
@@ -37,5 +38,23 @@ public static class StringExtensions
     public static string ToPlural(this string text)
     {
         return text.Pluralize(false);
+    }
+
+    /// <summary>
+    ///     Convert a string to kebab-case
+    /// </summary>
+    /// <param name="text">The string to convert</param>
+    /// <returns>The string converted to kebab-case</returns>
+    public static string ToKebabCase(this string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        
+        text = Regex.Replace(text, "([A-Z]+)([A-Z][a-z])", "$1-$2");
+        
+        text = Regex.Replace(text, "([a-z0-9])([A-Z])", "$1-$2");
+        
+        return text.ToLower();
     }
 }
