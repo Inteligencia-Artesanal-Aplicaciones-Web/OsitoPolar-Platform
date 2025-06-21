@@ -66,4 +66,13 @@ public class EquipmentCommandService(
         
         return equipment;
     }
+    public async Task<bool> Handle(DeleteEquipmentCommand command)
+    {
+        var equipment = await equipmentRepository.FindByIdAsync(command.EquipmentId);
+        if (equipment is null) return false;
+
+        equipmentRepository.Remove(equipment);
+        await unitOfWork.CompleteAsync();
+        return true;
+    }
 }

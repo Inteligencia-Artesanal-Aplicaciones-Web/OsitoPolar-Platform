@@ -1,4 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.Analytics.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.Analytics.Domain.Repositories;
+using OsitoPolarPlatform.API.Analytics.Domain.Services;
+using OsitoPolarPlatform.API.Analytics.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.bc_technicians.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.bc_technicians.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Repositories;
@@ -49,6 +54,10 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
+// Analytics Bounded Context
+builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
+builder.Services.AddScoped<IAnalyticsCommandService, AnalyticsCommandService>();
+builder.Services.AddScoped<IAnalyticsQueryService, AnalyticsQueryService>();
 
 //technicians Bounded Context
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
