@@ -8,6 +8,8 @@ using OsitoPolarPlatform.API.bc_technicians.Application.Internal.CommandServices
 using OsitoPolarPlatform.API.bc_technicians.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Repositories;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Services;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Configuration;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Services;
 using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServices;
@@ -49,7 +51,7 @@ if (isProduction)
 }
 else
 {
-    Console.WriteLine("🛠️  Development mode - http://localhost:5000");
+    Console.WriteLine("🛠️  Development mode - http://localhost:5128");
 }
 
 // Add services to the container.
@@ -76,7 +78,12 @@ builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
         {
-            policy.WithOrigins("http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000")
+            policy.WithOrigins(
+                    "http://localhost:3000",   
+                    "http://localhost:3001", 
+                    "http://localhost:5173",   
+                    "http://127.0.0.1:3000",
+                    "https://localhost:5173")  
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
@@ -116,6 +123,15 @@ builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
+
+// Stripe Configuration
+builder.Services.Configure<StripeSettings>(
+    builder.Configuration.GetSection("Stripe"));
+
+// Payment Services
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<IPaymentCommandService, PaymentCommandService>();
+builder.Services.AddScoped<IStripeService, StripeService>();
 
 // Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
