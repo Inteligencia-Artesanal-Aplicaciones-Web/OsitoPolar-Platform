@@ -1,4 +1,5 @@
 ﻿using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.ValueObjects;
+using System.Text.Json;
 
 namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
 
@@ -13,14 +14,29 @@ public partial class Subscription
     public BillingCycle BillingCycle { get; private set; }
     public int? MaxEquipment { get; private set; }
     public int? MaxClients { get; private set; }
-    public List<Feature> Features { get; private set; }
+    
+    // Store features as JSON string in database
+    // Needs to be internal or public for EF Core to access it
+    internal string? FeaturesJson { get; set; }  // Nullable
+    
+    // Computed property that converts JSON to/from List<Feature>
+    public List<Feature> Features 
+    { 
+        get => string.IsNullOrEmpty(FeaturesJson) 
+            ? new List<Feature>() 
+            : JsonSerializer.Deserialize<List<string>>(FeaturesJson)
+                ?.Select(f => new Feature(f)).ToList() ?? new List<Feature>();
+        private set => FeaturesJson = value?.Any() == true 
+            ? JsonSerializer.Serialize(value.Select(f => f.Name).ToList()) 
+            : "[]";
+    }
 
     protected Subscription()
     {
         PlanName = string.Empty;
-        Price = new Price(0m, "USD"); // Default to 0, will be set by constructor
-        BillingCycle = BillingCycle.Monthly; // Default to Monthly based on db.json
-        Features = new List<Feature>();
+        Price = new Price(0m, "USD");
+        BillingCycle = BillingCycle.Monthly;
+        FeaturesJson = "[]";
     }
 
     public Subscription(int id, string planName, decimal price, BillingCycle billingCycle, int? maxEquipment = null, int? maxClients = null, List<string>? featureNames = null) : this()
