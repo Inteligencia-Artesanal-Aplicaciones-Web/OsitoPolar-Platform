@@ -20,7 +20,7 @@ public static class ModelBuilderExtensions
         builder.Entity<Technician>().Property(t => t.Specialization).IsRequired().HasMaxLength(100);
         builder.Entity<Technician>().Property(t => t.Email).IsRequired().HasMaxLength(100);
         builder.Entity<Technician>().Property(t => t.Phone).IsRequired().HasMaxLength(20);
-        builder.Entity<Technician>().Property(t => t.Rating).IsRequired().HasColumnType("decimal(3,2)");
+        builder.Entity<Technician>().Property(t => t.averageRating).IsRequired().HasColumnType("decimal(3,2)");
         builder.Entity<Technician>().Property(t => t.Availability).IsRequired().HasMaxLength(50);
     }
 }

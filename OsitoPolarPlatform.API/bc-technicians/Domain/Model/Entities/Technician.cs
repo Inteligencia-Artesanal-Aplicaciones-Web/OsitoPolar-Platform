@@ -9,7 +9,7 @@ public class Technician
     public string Specialization { get; set; }
     public string Phone { get; set; }
     public string Email { get; set; }
-    public int Rating { get; set; }
+    public int averageRating { get; set; }
     public string Availability { get; set; }
     public int CompanyId { get; set; }
     
