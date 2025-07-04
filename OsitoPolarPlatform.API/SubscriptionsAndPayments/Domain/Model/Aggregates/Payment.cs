@@ -11,8 +11,7 @@ public partial class Payment
     public StripeSession StripeSession { get; private set; }
     public string? CustomerEmail { get; private set; }
     public string? Description { get; private set; }
-
-    // Constructor privado para Entity Framework Core
+    
     private Payment()
     {
         Amount = new Price(0, "USD");

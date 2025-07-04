@@ -17,12 +17,10 @@ public class SubscriptionCommandService(
             
             var newPlan = await subscriptionRepository.FindByIdAsync(command.PlanId)
                           ?? throw new InvalidOperationException($"Plan {command.PlanId} not found");
-
-            // CAMBIO: En lugar de buscar suscripción existente, simplemente procesamos el upgrade
+            
             Console.WriteLine($"User {command.UserId} upgraded to plan {newPlan.PlanName}");
             
             // TODO: Implement real logic to update the user's subscription in the database
-            // Por ahora retornamos el plan sin hacer cambios en DB
             
             return newPlan;
         }

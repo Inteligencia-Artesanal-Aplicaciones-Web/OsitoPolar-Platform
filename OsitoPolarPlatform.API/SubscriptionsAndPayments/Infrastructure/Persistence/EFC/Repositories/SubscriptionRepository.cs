@@ -14,11 +14,8 @@ public class SubscriptionRepository : BaseRepository<Subscription>, ISubscriptio
 
     public async Task<Subscription?> FindByUserIdAsync(int userId)
     {
-        // SOLUCIÓN TEMPORAL: Para que funcione el flujo inicial
-        // En un sistema real, necesitarías una tabla UserSubscription o similar
-        
-        // Por ahora, retorna null para usuarios que no tienen suscripción activa
-        // Esto permitirá que el flujo de pago funcione correctamente
+        // For now, it returns null to the users that do not have an active subscription
+        // This will allow the pay flow to work correctly
         return null;
         
         

@@ -8,20 +8,17 @@ public static class ModelBuilderExtensions
 {
     public static void ApplySubscriptionsConfiguration(this ModelBuilder builder)
     {
-        // Subscription configuration - MAPEAR A TU ESQUEMA ACTUAL
+        // Subscription configuration
         builder.Entity<Subscription>(entity =>
         {
             entity.HasKey(s => s.Id);
             entity.Property(s => s.Id).HasColumnName("id").IsRequired().ValueGeneratedOnAdd();
             entity.ToTable("subscriptions");
             
-            // Mapear a columnas que SÍ existen en tu DB
             entity.Property(s => s.PlanName)
                 .HasColumnName("plan_name")
                 .IsRequired()
                 .HasMaxLength(100);
-            
-            // Price se mapea a la columna 'price' existente
             entity.Property(s => s.Price)
                 .HasConversion(
                     p => p.Amount,
@@ -41,7 +38,6 @@ public static class ModelBuilderExtensions
             entity.Property(s => s.MaxEquipment).HasColumnName("max_equipment");
             entity.Property(s => s.MaxClients).HasColumnName("max_clients");
             
-            // Mapear Features a la columna JSON existente
             entity.Property<string>("FeaturesJson")
                 .HasColumnName("features")
                 .HasColumnType("json")
@@ -49,7 +45,6 @@ public static class ModelBuilderExtensions
                 
             entity.Ignore(s => s.Features);
             
-            // Usar las columnas de timestamp que SÍ existen - ARREGLADO el tipo
             entity.Property<DateTimeOffset?>("CreatedDate")
                 .HasColumnName("created_date")
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -59,7 +54,6 @@ public static class ModelBuilderExtensions
                 .HasDefaultValueSql("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
         });
         
-        // Payment configuration - MAPEAR A TU ESQUEMA ACTUAL
         builder.Entity<Payment>(entity =>
         {
             entity.HasKey(p => p.Id);
@@ -69,7 +63,6 @@ public static class ModelBuilderExtensions
             entity.Property(p => p.UserId).HasColumnName("user_id").IsRequired();
             entity.Property(p => p.SubscriptionId).HasColumnName("subscription_id").IsRequired();
             
-            // Amount se mapea a la columna 'amount' existente
             entity.Property(p => p.Amount)
                 .HasConversion(
                     a => a.Amount,
@@ -78,7 +71,6 @@ public static class ModelBuilderExtensions
                 .HasColumnType("decimal(10,2)")
                 .IsRequired();
             
-            // StripeSession se mapea a stripe_session_id existente
             entity.Property(p => p.StripeSession)
                 .HasConversion(
                     s => s.SessionId,
@@ -97,7 +89,6 @@ public static class ModelBuilderExtensions
                 .HasMaxLength(500)
                 .IsRequired(false);
             
-            // Usar las columnas timestamp que SÍ existen
                         
             entity.Property<DateTimeOffset?>("CreatedDate")
                 .HasColumnName("created_at")
