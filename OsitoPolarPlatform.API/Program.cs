@@ -14,6 +14,11 @@ using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServi
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Services;
 using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.Profiles.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Profiles.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Domain.Services;
+using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
@@ -87,6 +92,13 @@ builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
+
+//Profiles Bounded Context
+builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
+builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
+builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+
+
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
