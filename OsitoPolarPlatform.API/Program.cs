@@ -1,3 +1,6 @@
+
+using Cortex.Mediator.Commands;
+using Cortex.Mediator.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
@@ -26,8 +29,8 @@ using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
 using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
+using OsitoPolarPlatform.API.Shared.Infrastructure.Mediator.Cortex.Configuration;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
-using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
 using OsitoPolarPlatform.API.WorkOrders.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.WorkOrders.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
@@ -97,6 +100,28 @@ builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>(
 builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
 builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+
+
+
+
+
+
+
+
+// Mediator Configuration
+
+// Add Mediator Injection Configuration
+builder.Services.AddScoped(typeof(ICommandPipelineBehavior<>), typeof(LoggingCommandBehavior<>));
+
+// Add Cortex Mediator for Event Handling
+builder.Services.AddCortexMediator(
+    configuration: builder.Configuration,
+    handlerAssemblyMarkerTypes: new[] { typeof(Program) }, configure: options =>
+    {
+        options.AddOpenCommandPipelineBehavior(typeof(LoggingCommandBehavior<>));
+    });
+
+
 
 
 
