@@ -2,6 +2,7 @@
 using Cortex.Mediator.Commands;
 using Cortex.Mediator.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.Analytics.Domain.Repositories;
@@ -17,6 +18,18 @@ using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServi
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Services;
 using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.IAM.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.IAM.Application.Internal.OutboundServices;
+using OsitoPolarPlatform.API.IAM.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.IAM.Domain.Repositories;
+using OsitoPolarPlatform.API.IAM.Domain.Services;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Hashing.BCrypt.Services;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Extensions;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Tokens.JWT.Configuration;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Tokens.JWT.Services;
+using OsitoPolarPlatform.API.IAM.Interfaces.ACL;
+using OsitoPolarPlatform.API.IAM.Interfaces.ACL.Services;
 using OsitoPolarPlatform.API.Profiles.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Profiles.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
@@ -53,6 +66,7 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 // Configure Controllers PRIMERO (sin convenciones de naming que pueden causar conflictos)
 builder.Services.AddControllers();
 
+
 // Configure CORS para producción
 builder.Services.AddCors(options =>
 {
@@ -63,6 +77,26 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 });
+
+//Profiles Bounded Context
+builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
+builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
+builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+
+
+// IAM Bounded Context Injection Configuration
+
+// TokenSettings Configuration
+
+builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
+
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserCommandService, UserCommandService>();
+builder.Services.AddScoped<IUserQueryService, UserQueryService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IHashingService, HashingService>();
+builder.Services.AddScoped<IIamContextFacade, IamContextFacade>();
+
 
 // Shared Bounded Context
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -96,12 +130,6 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
 
-//Profiles Bounded Context
-builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
-builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
-builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
-
-
 
 
 
@@ -127,7 +155,33 @@ builder.Services.AddCortexMediator(
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
+builder.Services.AddSwaggerGen(options =>
+{
+    options.EnableAnnotations();
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter token",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "bearer"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Id = "Bearer",
+                    Type = ReferenceType.SecurityScheme
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 // Add Database Connection
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -146,6 +200,11 @@ using (var scope = app.Services.CreateScope())
     context.Database.EnsureCreated();
 }
 
+
+
+
+
+
 // Configure the HTTP request pipeline.
 // Habilitar Swagger en desarrollo Y producción para testing
 app.UseSwagger();
@@ -160,6 +219,10 @@ app.UseSwaggerUI(c =>
 
 // Usar CORS
 app.UseCors("AllowAll");
+
+
+// Add Authorization Middleware to Pipeline
+app.UseRequestAuthorization();
 
 // IMPORTANTE: Agregar UseRouting() antes de UseAuthorization()
 app.UseRouting();
