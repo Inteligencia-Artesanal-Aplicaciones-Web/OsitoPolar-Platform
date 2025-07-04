@@ -1,5 +1,5 @@
-﻿using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration.Extensions;
-using Microsoft.AspNetCore.Mvc.ApplicationModels;
+﻿using Microsoft.AspNetCore.Mvc.ApplicationModels;
+using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration.Extensions;
 
 namespace OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
 
