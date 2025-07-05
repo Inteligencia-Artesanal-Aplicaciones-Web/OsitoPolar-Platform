@@ -79,6 +79,7 @@ builder.Services.AddCors(options =>
         options.AddPolicy("AllowAll", policy =>
         {
             policy.WithOrigins(
+                    "https://osito-polar-v1.web.app",
                     "http://localhost:3000",   
                     "http://localhost:3001", 
                     "http://localhost:5173",   
