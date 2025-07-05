@@ -191,6 +191,9 @@ if (isProduction)
     var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
     Console.WriteLine($"📍 Swagger: http://0.0.0.0:{port}");
     Console.WriteLine($"📍 Equipment API: http://0.0.0.0:{port}/api/v1/equipments");
+    Console.WriteLine($"📍 Service Request API: http://0.0.0.0:{port}/api/v1/service-requests");
+    Console.WriteLine($"📍 Technician API: http://0.0.0.0:{port}/api/v1/technicians");
+
 }
 else
 {
