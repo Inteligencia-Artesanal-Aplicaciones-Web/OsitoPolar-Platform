@@ -12,7 +12,6 @@ namespace OsitoPolarPlatform.API.bc_technicians.Interfaces.REST;
 [Route("api/v1/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
 [SwaggerTag("Available Technician Endpoints")]
-
 public class TechniciansController(ITechnicianCommandService techniciansService,
     ITechnicianQueryService technicianQueryService) : ControllerBase
 {
@@ -32,9 +31,8 @@ public class TechniciansController(ITechnicianCommandService techniciansService,
         {
             return BadRequest("The technician could not be created");
         }
-        var createdResource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician, 0.0);
+        var createdResource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician, 0.0m);
         return CreatedAtAction(nameof(GetTechnicianById), new { TechnicianId = createdResource.Id }, createdResource);
-
     }
 
     [HttpGet]
@@ -47,7 +45,7 @@ public class TechniciansController(ITechnicianCommandService techniciansService,
     {
         var getAllTechniciansQuery = new GetAllTechniciansQuery();
         var technicians = await technicianQueryService.Handle(getAllTechniciansQuery);
-        var resources = technicians.Select(t => TechnicianResourceFromEntityAssembler.ToResourceFromEntity(t, 0.0)).ToList();
+        var resources = technicians.Select(t => TechnicianResourceFromEntityAssembler.ToResourceFromEntity(t, 0.0m)).ToList();
         return Ok(resources);
     }
 
@@ -78,7 +76,7 @@ public class TechniciansController(ITechnicianCommandService techniciansService,
         Summary = "Get Technician Average Rating",
         Description = "Returns the calculated average customer feedback rating for a specific technician.",
         OperationId = "GetTechnicianAverageRating")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Average rating found", typeof(double))]
+    [SwaggerResponse(StatusCodes.Status200OK, "Average rating found", typeof(decimal))]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Technician not found")]
     public async Task<IActionResult> GetTechnicianAverageRating(int technicianId)
     {

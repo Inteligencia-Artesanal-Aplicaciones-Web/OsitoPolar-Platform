@@ -9,7 +9,7 @@ public class Technician
     public string Specialization { get; set; }
     public string Phone { get; set; }
     public string Email { get; set; }
-    public int Rating { get; set; }
+    public decimal Rating { get; set; }
     public string Availability { get; set; }
     public int CompanyId { get; set; }
     
@@ -21,6 +21,7 @@ public class Technician
         Email = string.Empty;
         Availability = string.Empty;
         CompanyId = 0;
+        Rating = 0.0m;
     }
 
     
@@ -32,6 +33,7 @@ public class Technician
         Email = email;
         Availability = availability;
         CompanyId = companyId;
+        Rating = 0.0m;
     }
     
     public Technician(CreateTechnicianCommand command)
