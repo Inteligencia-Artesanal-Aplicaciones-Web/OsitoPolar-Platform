@@ -59,20 +59,21 @@ public class SubscriptionsController(
     /// <summary>
     /// Upgrades a subscription to a new plan.
     /// </summary>
+    /// <param name="subscriptionId">The unique identifier of the subscription to upgrade.</param>
     /// <param name="resource">The resource containing the upgrade details.</param>
     /// <returns>The updated subscription resource with a 201 Created status code, or 400 Bad Request if upgrade failed.</returns>
-    [HttpPost("upgrade")]
+    [HttpPatch("{subscriptionId:int}")]
     [SwaggerOperation(
         Summary = "Upgrade Subscription",
         Description = "Upgrades a subscription to a new plan.",
         OperationId = "UpgradeSubscription")]
     [SwaggerResponse(StatusCodes.Status201Created, "Subscription upgraded", typeof(SubscriptionResource))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "The subscription could not be upgraded")]
-    public async Task<IActionResult> UpgradeSubscription([FromBody] UpgradeSubscriptionResource resource)
+    public async Task<IActionResult> UpgradeSubscription(int subscriptionId, [FromBody] UpgradeSubscriptionResource resource)
     {
         try
         {
-            var command = UpgradeSubscriptionCommandFromResourceAssembler.ToCommandFromResource(resource);
+            var command = UpgradeSubscriptionCommandFromResourceAssembler.ToCommandFromResource(resource with { UserId = subscriptionId });
             var subscription = await subscriptionCommandService.Handle(command);
             if (subscription is null) return BadRequest("Subscription could not be upgraded.");
             var createdResource = SubscriptionResourceFromEntityAssembler.ToResourceFromEntity(subscription);
