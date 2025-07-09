@@ -31,7 +31,7 @@ public class PaymentsController : ControllerBase
     /// <summary>
     /// Creates a Stripe checkout session for subscription payment
     /// </summary>
-    [HttpPost("create-checkout-session")]
+    [HttpPost("/api/v1/checkout-sessions")]
     [SwaggerOperation(
         Summary = "Create Checkout Session",
         Description = "Creates a Stripe checkout session for subscription payment",
@@ -70,7 +70,7 @@ public class PaymentsController : ControllerBase
     /// <summary>
     /// Webhook endpoint for Stripe events
     /// </summary>
-    [HttpPost("webhook")]
+    [HttpPost("/api/v1/payment-webhooks")]
     [SwaggerOperation(
         Summary = "Stripe Webhook",
         Description = "Processes Stripe webhook events",
