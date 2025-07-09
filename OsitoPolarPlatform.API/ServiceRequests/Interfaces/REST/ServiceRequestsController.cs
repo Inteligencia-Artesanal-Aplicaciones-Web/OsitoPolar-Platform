@@ -120,7 +120,7 @@ public class ServiceRequestsController(
     /// <param name="serviceRequestId">The ID of the service request.</param>
     /// <param name="resource">The resource containing the technician ID.</param>
     /// <returns>The updated service request resource.</returns>
-    [HttpPut("{serviceRequestId:int}/assign-technician")]
+    [HttpPut("{serviceRequestId:int}/technician")]
     [SwaggerOperation(
         Summary = "Assign Technician to Service Request",
         Description = "Assigns a technician to a service request, updating its status to Accepted and creating a Work Order.",
@@ -167,52 +167,46 @@ public class ServiceRequestsController(
     }
 
     /// <summary>
-    /// Rejects a pending service request.
+    /// Updates the status of a service request (reject or cancel).
     /// </summary>
-    /// <param name="serviceRequestId">The ID of the service request to reject.</param>
+    /// <param name="serviceRequestId">The ID of the service request to update.</param>
+    /// <param name="resource">The resource containing the new status (e.g., 'rejected', 'cancelled').</param>
     /// <returns>The updated service request resource.</returns>
-    [HttpPut("{serviceRequestId:int}/reject")]
+    [HttpPut("{serviceRequestId:int}/status")]
     [SwaggerOperation(
-        Summary = "Reject Service Request",
-        Description = "Rejects a pending service request.",
-        OperationId = "RejectServiceRequest")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Service Request rejected successfully", typeof(ServiceRequestResource))]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Service Request cannot be rejected from its current status")]
+        Summary = "Update Service Request Status (Reject/Cancel)",
+        Description = "Updates the status of a service request to 'rejected' or 'cancelled'.",
+        OperationId = "UpdateServiceRequestStatus")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Service Request status updated successfully", typeof(ServiceRequestResource))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid status or transition")]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
-    public async Task<IActionResult> RejectServiceRequest(int serviceRequestId)
+    public async Task<IActionResult> UpdateServiceRequestStatus(int serviceRequestId, [FromBody] UpdateServiceRequestStatusResource resource)
     {
-        var command = new RejectServiceRequestCommand(serviceRequestId);
-        var serviceRequest = await serviceRequestCommandService.Handle(command);
-        if (serviceRequest == null)
+        var status = resource?.NewStatus;
+        if (string.IsNullOrWhiteSpace(status))
+            return BadRequest("Status is required. Use 'rejected' or 'cancelled'.");
+
+        if (status.Equals("rejected", StringComparison.OrdinalIgnoreCase))
         {
-            return NotFound();
+            var command = new RejectServiceRequestCommand(serviceRequestId);
+            var serviceRequest = await serviceRequestCommandService.Handle(command);
+            if (serviceRequest == null)
+                return NotFound();
+            var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
+            return Ok(updatedResource);
         }
-        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
-        return Ok(updatedResource);
-    }
-    
-    /// <summary>
-    /// Cancels a pending or in-progress service request.
-    /// </summary>
-    /// <param name="serviceRequestId">The ID of the service request to cancel.</param>
-    /// <returns>The updated service request resource.</returns>
-    [HttpPut("{serviceRequestId:int}/cancel")]
-    [SwaggerOperation(
-        Summary = "Cancel Service Request",
-        Description = "Cancels a pending or in-progress service request.",
-        OperationId = "CancelServiceRequest")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Service Request cancelled successfully", typeof(ServiceRequestResource))]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Service Request cannot be cancelled from its current status")]
-    [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
-    public async Task<IActionResult> CancelServiceRequest(int serviceRequestId)
-    {
-        var command = new CancelServiceRequestCommand(serviceRequestId);
-        var serviceRequest = await serviceRequestCommandService.Handle(command);
-        if (serviceRequest == null)
+        else if (status.Equals("cancelled", StringComparison.OrdinalIgnoreCase) || status.Equals("canceled", StringComparison.OrdinalIgnoreCase))
         {
-            return NotFound();
+            var command = new CancelServiceRequestCommand(serviceRequestId);
+            var serviceRequest = await serviceRequestCommandService.Handle(command);
+            if (serviceRequest == null)
+                return NotFound();
+            var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
+            return Ok(updatedResource);
         }
-        var updatedResource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
-        return Ok(updatedResource);
+        else
+        {
+            return BadRequest("Invalid status value. Use 'rejected' or 'cancelled'.");
+        }
     }
 }
