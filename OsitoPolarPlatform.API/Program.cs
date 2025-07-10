@@ -1,4 +1,7 @@
+using Cortex.Mediator.Commands;
+using Cortex.Mediator.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.Analytics.Domain.Repositories;
@@ -16,6 +19,23 @@ using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServi
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Services;
 using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.IAM.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.IAM.Application.Internal.OutboundServices;
+using OsitoPolarPlatform.API.IAM.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.IAM.Domain.Repositories;
+using OsitoPolarPlatform.API.IAM.Domain.Services;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Hashing.BCrypt.Services;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Extensions;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Tokens.JWT.Configuration;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Tokens.JWT.Services;
+using OsitoPolarPlatform.API.IAM.Interfaces.ACL;
+using OsitoPolarPlatform.API.IAM.Interfaces.ACL.Services;
+using OsitoPolarPlatform.API.Profiles.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Profiles.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Domain.Services;
+using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
@@ -23,8 +43,9 @@ using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
 using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
-using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
+using OsitoPolarPlatform.API.Shared.Infrastructure.Mediator.Cortex.Configuration;
+using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.WorkOrders.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.WorkOrders.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
@@ -37,6 +58,7 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
+
 
 var isProduction = builder.Environment.IsProduction() || 
                   Environment.GetEnvironmentVariable("RENDER") != null ||
@@ -56,9 +78,12 @@ else
 
 // Add services to the container.
 
+builder.Services.AddControllers();
 // Configure Lower Case URLs
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
 
+
+// Configure CORS for prod
 // Configure Kebab Case Route Naming Convention
 builder.Services.AddControllers(options => options.Conventions.Add(new KebabCaseRouteNamingConvention()));
 
@@ -92,6 +117,26 @@ builder.Services.AddCors(options =>
     }
 });
 
+//Profiles Bounded Context
+builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
+builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
+builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+
+
+// IAM Bounded Context Injection Configuration
+
+// TokenSettings Configuration
+
+builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
+
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserCommandService, UserCommandService>();
+builder.Services.AddScoped<IUserQueryService, UserQueryService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IHashingService, HashingService>();
+builder.Services.AddScoped<IIamContextFacade, IamContextFacade>();
+
+
 // Shared Bounded Context
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -99,23 +144,22 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
-
 // Analytics Bounded Context
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IAnalyticsCommandService, AnalyticsCommandService>();
 builder.Services.AddScoped<IAnalyticsQueryService, AnalyticsQueryService>();
 
-// Technicians Bounded Context
+//technicians Bounded Context
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
 builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
 builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
 
-// Equipment Bounded Context
+//Equipment Bounded Context
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
 builder.Services.AddScoped<IEquipmentCommandService, EquipmentCommandService>();
 builder.Services.AddScoped<IEquipmentQueryService, EquipmentQueryService>();
 
-// Work Orders Bounded Context
+// Configure Dependency Injection for Work Orders Bounded Context
 builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
 builder.Services.AddScoped<IWorkOrderCommandService, WorkOrderCommandService>();
 builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
@@ -125,18 +169,58 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
 
-// Stripe Configuration
-builder.Services.Configure<StripeSettings>(
-    builder.Configuration.GetSection("Stripe"));
 
-// Payment Services
-builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
-builder.Services.AddScoped<IPaymentCommandService, PaymentCommandService>();
-builder.Services.AddScoped<IStripeService, StripeService>();
 
-// Swagger/OpenAPI
+
+
+
+
+// Mediator Configuration
+
+// Add Mediator Injection Configuration
+builder.Services.AddScoped(typeof(ICommandPipelineBehavior<>), typeof(LoggingCommandBehavior<>));
+
+// Add Cortex Mediator for Event Handling
+builder.Services.AddCortexMediator(
+    configuration: builder.Configuration,
+    handlerAssemblyMarkerTypes: new[] { typeof(Program) }, configure: options =>
+    {
+        options.AddOpenCommandPipelineBehavior(typeof(LoggingCommandBehavior<>));
+    });
+
+
+
+
+
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options => options.EnableAnnotations());
+builder.Services.AddSwaggerGen(options =>
+{
+    options.EnableAnnotations();
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter token",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "bearer"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Id = "Bearer",
+                    Type = ReferenceType.SecurityScheme
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 // Add Database Connection
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -157,18 +241,18 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-
-// Swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "OsitoPolar API V1");
+    c.RoutePrefix = string.Empty;
     if (isProduction)
     {
         c.RoutePrefix = string.Empty; 
     }
 });
 
+// app.UseHttpsRedirection();
 
 if (!isProduction)
 {
@@ -178,8 +262,12 @@ if (!isProduction)
 // CORS
 app.UseCors("AllowAll");
 
+app.UseRequestAuthorization();
+
 app.UseRouting();
+
 app.UseAuthorization();
+
 app.MapControllers();
 
 
