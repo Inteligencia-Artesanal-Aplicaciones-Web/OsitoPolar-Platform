@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.Analytics.Application.Internal.Services;
 using OsitoPolarPlatform.API.Analytics.Domain.Repositories;
 using OsitoPolarPlatform.API.Analytics.Domain.Services;
 using OsitoPolarPlatform.API.Analytics.Infrastructure.Persistence.EFC.Repositories;
@@ -106,6 +107,7 @@ builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryServi
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IAnalyticsCommandService, AnalyticsCommandService>();
 builder.Services.AddScoped<IAnalyticsQueryService, AnalyticsQueryService>();
+builder.Services.AddScoped<IAutomaticDataGeneratorService, SimpleDataGeneratorService>();
 
 //technicians Bounded Context
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
@@ -126,11 +128,6 @@ builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
-
-
-
-
-
 
 
 // Mediator Configuration
