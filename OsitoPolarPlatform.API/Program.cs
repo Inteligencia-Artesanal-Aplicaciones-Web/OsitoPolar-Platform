@@ -1,4 +1,3 @@
-
 using Cortex.Mediator.Commands;
 using Cortex.Mediator.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -57,17 +56,15 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CONFIGURACIÓN CRÍTICA PARA RENDER - Puerto dinámico
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 // Add services to the container.
 
-// Configure Controllers PRIMERO (sin convenciones de naming que pueden causar conflictos)
 builder.Services.AddControllers();
 
 
-// Configure CORS para producción
+// Configure CORS for prod
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -200,42 +197,30 @@ using (var scope = app.Services.CreateScope())
     context.Database.EnsureCreated();
 }
 
-
-
-
-
-
 // Configure the HTTP request pipeline.
-// Habilitar Swagger en desarrollo Y producción para testing
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "OsitoPolar API V1");
-    c.RoutePrefix = string.Empty; // Swagger será la página principal
+    c.RoutePrefix = string.Empty;
 });
 
-// CRÍTICO: Comentar UseHttpsRedirection para Render
-// app.UseHttpsRedirection(); // <-- COMENTADO para Render
+// app.UseHttpsRedirection();
 
-// Usar CORS
 app.UseCors("AllowAll");
 
-
-// Add Authorization Middleware to Pipeline
 app.UseRequestAuthorization();
 
-// IMPORTANTE: Agregar UseRouting() antes de UseAuthorization()
 app.UseRouting();
 
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Log para debugging - Agregar información de rutas
-Console.WriteLine($"🚀 Server starting on port: {port}");
-Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
-Console.WriteLine($"🔗 Connection String configured: {!string.IsNullOrEmpty(connectionString)}");
-Console.WriteLine($"📍 Swagger available at: http://0.0.0.0:{port}");
-Console.WriteLine($"📍 Equipment API available at: http://0.0.0.0:{port}/api/v1/equipments");
+Console.WriteLine($"Server starting on port: {port}");
+Console.WriteLine($"Environment: {app.Environment.EnvironmentName}");
+Console.WriteLine($"Connection String configured: {!string.IsNullOrEmpty(connectionString)}");
+Console.WriteLine($"Swagger available at: http://0.0.0.0:{port}");
+Console.WriteLine($"Equipment API available at: http://0.0.0.0:{port}/api/v1/equipments");
 
 app.Run();
