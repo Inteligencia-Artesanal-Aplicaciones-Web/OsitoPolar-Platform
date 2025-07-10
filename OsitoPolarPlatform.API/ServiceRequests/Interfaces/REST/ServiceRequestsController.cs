@@ -63,6 +63,7 @@ public class ServiceRequestsController(
     [SwaggerResponse(StatusCodes.Status200OK, "Service Request updated", typeof(ServiceRequestResource))]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Failed to update service request")]
+    
     public async Task<IActionResult> UpdateServiceRequest([FromRoute] int serviceRequestId, [FromBody] UpdateServiceRequestResource resource)
     {
         var updateServiceRequestCommand = UpdateServiceRequestCommandFromResourceAssembler.ToCommandFromResource(serviceRequestId, resource);
@@ -128,7 +129,7 @@ public class ServiceRequestsController(
     [SwaggerResponse(StatusCodes.Status200OK, "Technician assigned successfully", typeof(ServiceRequestResource))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid request or technician already assigned")]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
-    public async Task<IActionResult> AssignTechnician(int serviceRequestId, [FromBody] AssignTechnicianToServiceRequestResource resource)
+    public async Task<IActionResult> AssignTechnician([FromRoute] int serviceRequestId, [FromBody] AssignTechnicianToServiceRequestResource resource)  
     {
         var command = AssignTechnicianToServiceRequestCommandFromResourceAssembler.ToCommandFromResource(serviceRequestId, resource);
         var serviceRequest = await serviceRequestCommandService.Handle(command);
@@ -154,7 +155,7 @@ public class ServiceRequestsController(
     [SwaggerResponse(StatusCodes.Status200OK, "Feedback added successfully", typeof(ServiceRequestResource))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid rating or service request not resolved")]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Service Request not found")]
-    public async Task<IActionResult> AddCustomerFeedback(int serviceRequestId, [FromBody] AddCustomerFeedbackToServiceRequestResource resource)
+    public async Task<IActionResult> AddCustomerFeedback([FromRoute] int serviceRequestId, [FromBody] AddCustomerFeedbackToServiceRequestResource resource)
     {
         var command = AddCustomerFeedbackToServiceRequestCommandFromResourceAssembler.ToCommandFromResource(serviceRequestId, resource);
         var serviceRequest = await serviceRequestCommandService.Handle(command);
