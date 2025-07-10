@@ -1,102 +1,106 @@
-﻿using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.ValueObjects;
 
 namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Configuration.Extensions;
 
+/// <summary>
+/// Extensions for configuring Subscriptions context entities - MINIMAL VERSION
+/// </summary>
 public static class ModelBuilderExtensions
 {
     public static void ApplySubscriptionsConfiguration(this ModelBuilder builder)
     {
-        // Subscription configuration
+
         builder.Entity<Subscription>(entity =>
         {
             entity.HasKey(s => s.Id);
-            entity.Property(s => s.Id).HasColumnName("id").IsRequired().ValueGeneratedOnAdd();
-            entity.ToTable("subscriptions");
+            entity.Property(s => s.Id).IsRequired().ValueGeneratedOnAdd();
+            entity.Property(s => s.PlanName).HasMaxLength(200).IsRequired();
+            entity.Property(s => s.BillingCycle).IsRequired().HasConversion<string>();
+            entity.Property(s => s.MaxEquipment).IsRequired(false);
+            entity.Property(s => s.MaxClients).IsRequired(false);
             
-            entity.Property(s => s.PlanName)
-                .HasColumnName("plan_name")
-                .IsRequired()
-                .HasMaxLength(100);
-            entity.Property(s => s.Price)
-                .HasConversion(
-                    p => p.Amount,
-                    v => new Price(v, "USD"))
-                .HasColumnName("price")
-                .HasColumnType("decimal(18,2)")
-                .IsRequired();
+            entity.Property(s => s.CreatedDate).HasColumnName("created_at");
+            entity.Property(s => s.UpdatedDate).HasColumnName("updated_at");
             
-            entity.Property(s => s.BillingCycle)
-                .HasConversion(
-                    b => b.ToString(), 
-                    v => (BillingCycle)Enum.Parse(typeof(BillingCycle), v))
-                .HasColumnName("billing_cycle")
-                .IsRequired()
-                .HasMaxLength(20);
-                
-            entity.Property(s => s.MaxEquipment).HasColumnName("max_equipment");
-            entity.Property(s => s.MaxClients).HasColumnName("max_clients");
-            
-            entity.Property<string>("FeaturesJson")
-                .HasColumnName("features")
-                .HasColumnType("json")
-                .IsRequired(false);
-                
+
             entity.Ignore(s => s.Features);
+            entity.Ignore(s => s.FeaturesJson);
+            entity.Ignore(s => s.Price);
             
-            entity.Property<DateTimeOffset?>("CreatedDate")
-                .HasColumnName("created_date")
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
-            
-            entity.Property<DateTimeOffset?>("UpdatedDate")
-                .HasColumnName("updated_date")
-                .HasDefaultValueSql("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+            entity.ToTable("subscriptions");
         });
-        
-        builder.Entity<Payment>(entity =>
-        {
-            entity.HasKey(p => p.Id);
-            entity.Property(p => p.Id).HasColumnName("id").IsRequired().ValueGeneratedOnAdd();
-            entity.ToTable("payments");
-            
-            entity.Property(p => p.UserId).HasColumnName("user_id").IsRequired();
-            entity.Property(p => p.SubscriptionId).HasColumnName("subscription_id").IsRequired();
-            
-            entity.Property(p => p.Amount)
-                .HasConversion(
-                    a => a.Amount,
-                    v => new Price(v, "USD"))
-                .HasColumnName("amount")
-                .HasColumnType("decimal(10,2)")
-                .IsRequired();
-            
-            entity.Property(p => p.StripeSession)
-                .HasConversion(
-                    s => s.SessionId,
-                    v => new StripeSession(v))
-                .HasColumnName("stripe_session_id")
-                .HasMaxLength(255)
-                .IsRequired();
-            
-            entity.Property(p => p.CustomerEmail)
-                .HasColumnName("customer_email")
-                .HasMaxLength(255)
-                .IsRequired(false);
-                
-            entity.Property(p => p.Description)
-                .HasColumnName("description")
-                .HasMaxLength(500)
-                .IsRequired(false);
-            
-                        
-            entity.Property<DateTimeOffset?>("CreatedDate")
-                .HasColumnName("created_at")
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
-            
-            entity.Property<DateTimeOffset?>("UpdatedDate")
-                .HasColumnName("updated_at")
-                .HasDefaultValueSql("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
-        });
+
+        // Seed MINIMAL data
+        SeedMinimalSubscriptionPlans(builder);
+    }
+
+    private static void SeedMinimalSubscriptionPlans(ModelBuilder builder)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        builder.Entity<Subscription>().HasData(
+            new 
+            {
+                Id = 1,
+                PlanName = "Basic (Polar Bear) - $18.99/month - Up to 6 units",
+                BillingCycle = BillingCycle.Monthly,
+                MaxEquipment = 6,
+                MaxClients = (int?)null,
+                CreatedDate = now,
+                UpdatedDate = now
+            },
+            new 
+            {
+                Id = 2,
+                PlanName = "Standard (Snow Bear) - $35.13/month - Up to 12 units",
+                BillingCycle = BillingCycle.Monthly,
+                MaxEquipment = 12,
+                MaxClients = (int?)null,
+                CreatedDate = now,
+                UpdatedDate = now
+            },
+            new 
+            {
+                Id = 3,
+                PlanName = "Premium (Glacial Bear) - $67.56/month - Up to 24 units",
+                BillingCycle = BillingCycle.Monthly,
+                MaxEquipment = 24,
+                MaxClients = (int?)null,
+                CreatedDate = now,
+                UpdatedDate = now
+            },
+            new 
+            {
+                Id = 4,
+                PlanName = "Small Company - $40.51/month - Up to 10 clients",
+                BillingCycle = BillingCycle.Monthly,
+                MaxEquipment = (int?)null,
+                MaxClients = 10,
+                CreatedDate = now,
+                UpdatedDate = now
+            },
+            new 
+            {
+                Id = 5,
+                PlanName = "Medium Company - $81.08/month - Up to 30 clients",
+                BillingCycle = BillingCycle.Monthly,
+                MaxEquipment = (int?)null,
+                MaxClients = 30,
+                CreatedDate = now,
+                UpdatedDate = now
+            },
+            new 
+            {
+                Id = 6,
+                PlanName = "Enterprise Premium - $162.16/month - Unlimited clients",
+                BillingCycle = BillingCycle.Monthly,
+                MaxEquipment = (int?)null,
+                MaxClients = 999999,
+                CreatedDate = now,
+                UpdatedDate = now
+            }
+        );
     }
 }
