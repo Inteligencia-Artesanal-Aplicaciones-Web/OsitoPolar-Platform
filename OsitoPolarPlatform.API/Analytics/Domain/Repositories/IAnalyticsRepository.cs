@@ -13,6 +13,7 @@ public interface IAnalyticsRepository : IBaseRepository<TemperatureReading>
     Task<IEnumerable<TemperatureReading>> FindTemperatureReadingsByDateRangeAsync(int equipmentId, DateTimeOffset start, DateTimeOffset end);
     
     // Daily Average operations
+    
     Task<IEnumerable<DailyTemperatureAverage>> FindDailyAveragesByEquipmentIdAsync(int equipmentId, int days = 7);
     Task<DailyTemperatureAverage?> FindDailyAverageByEquipmentAndDateAsync(int equipmentId, DateOnly date);
     Task AddDailyAverageAsync(DailyTemperatureAverage dailyAverage);
