@@ -1,14 +1,16 @@
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
+
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Resources;
 
 public record UpdateServiceRequestResource(
     string Title,
     string Description,
     string IssueDetails,
-    string Status,
-    string Priority,
-    string Urgency,
+    EServiceRequestStatus Status,    
+    EPriority Priority,              
+    EUrgency Urgency,                
     bool IsEmergency,
-    string ServiceType, 
+    EServiceType ServiceType,        
     int? AssignedTechnicianId,
     DateTimeOffset? ScheduledDate,
     string TimeSlot,
