@@ -52,20 +52,40 @@ public class UserCommandService(
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(command.Username) || string.IsNullOrWhiteSpace(command.Password))
-                throw new ArgumentException("Username and password cannot be empty");
-                
-            if (userRepository.ExistsByUsername(command.Username))
-                throw new Exception($"Username {command.Username} is already taken");
-
-            var hashedPassword = hashingService.HashPassword(command.Password);
-            var user = new User(command.Username, hashedPassword);
+            Console.WriteLine($"[SignUp] Attempting to create user: {command.Username}");
+            Console.WriteLine($"[SignUp] Password length: {command.Password?.Length ?? 0}");
         
+            if (string.IsNullOrWhiteSpace(command.Username) || string.IsNullOrWhiteSpace(command.Password))
+            {
+                Console.WriteLine("[SignUp] ERROR: Username or password is empty");
+                throw new ArgumentException("Username and password cannot be empty");
+            }
+            
+            Console.WriteLine("[SignUp] Checking if username exists...");
+            if (userRepository.ExistsByUsername(command.Username))
+            {
+                Console.WriteLine($"[SignUp] ERROR: Username {command.Username} already exists");
+                throw new Exception($"Username {command.Username} is already taken");
+            }
+
+            Console.WriteLine("[SignUp] Hashing password...");
+            var hashedPassword = hashingService.HashPassword(command.Password);
+        
+            Console.WriteLine("[SignUp] Creating user object...");
+            var user = new User(command.Username, hashedPassword);
+    
+            Console.WriteLine("[SignUp] Adding user to repository...");
             await userRepository.AddAsync(user);
+        
+            Console.WriteLine("[SignUp] Completing transaction...");
             await unitOfWork.CompleteAsync();
+        
+            Console.WriteLine($"[SignUp] SUCCESS: User {command.Username} created successfully");
         }
         catch (Exception e)
         {
+            Console.WriteLine($"[SignUp] EXCEPTION: {e.GetType().Name}: {e.Message}");
+            Console.WriteLine($"[SignUp] Stack Trace: {e.StackTrace}");
             throw new Exception($"An error occurred while creating user: {e.Message}");
         }
     }

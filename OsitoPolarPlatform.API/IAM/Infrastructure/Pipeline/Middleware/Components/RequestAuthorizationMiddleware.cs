@@ -5,61 +5,84 @@ using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 
 namespace OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Components;
 
-/**
- * RequestAuthorizationMiddleware is a custom middleware.
- * This middleware is used to authorize requests.
- * It validates a token is included in the request header and that the token is valid.
- * If the token is valid then it sets the user in HttpContext.Items["User"].
- */
 public class RequestAuthorizationMiddleware(RequestDelegate next)
 {
-    /**
-     * InvokeAsync is called by the ASP.NET Core runtime.
-     * It is used to authorize requests.
-     * It validates a token is included in the request header and that the token is valid.
-     * If the token is valid then it sets the user in HttpContext.Items["User"].
-     */
     public async Task InvokeAsync(
         HttpContext context,
         IUserQueryService userQueryService,
         ITokenService tokenService)
     {
-        Console.WriteLine("Entering InvokeAsync");
-        // skip authorization if endpoint is decorated with [AllowAnonymous] attribute
-        var allowAnonymous = context.Request.HttpContext.GetEndpoint()!.Metadata
-            .Any(m => m.GetType() == typeof(AllowAnonymousAttribute));
-        Console.WriteLine($"Allow Anonymous is {allowAnonymous}");
-        if (allowAnonymous)
+        Console.WriteLine($"[Middleware] Processing: {context.Request.Method} {context.Request.Path}");
+        
+        var path = context.Request.Path.Value?.ToLower() ?? "";
+        if (path.Contains("/authentication/") || path.Contains("/swagger"))
         {
-            Console.WriteLine("Skipping authorization");
-            // [AllowAnonymous] attribute is set, so skip authorization
+            Console.WriteLine("[Middleware] Skipping authorization for auth/swagger endpoints");
             await next(context);
             return;
         }
-        Console.WriteLine("Entering authorization");
-        // get token from request header
-        var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+        
+        var endpoint = context.Request.HttpContext.GetEndpoint();
+        if (endpoint != null)
+        {
+            var allowAnonymous = endpoint.Metadata
+                .Any(m => m.GetType() == typeof(AllowAnonymousAttribute));
+            
+            if (allowAnonymous)
+            {
+                Console.WriteLine("[Middleware] Skipping authorization - AllowAnonymous");
+                await next(context);
+                return;
+            }
+        }
 
+        Console.WriteLine("[Middleware] Checking authorization...");
+        
+        try
+        {
+            var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
+            {
+                Console.WriteLine("[Middleware] No valid authorization header found");
+                await next(context);
+                return;
+            }
 
-        // if token is null then throw exception
-        if (token == null) throw new Exception("Null or invalid token");
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            Console.WriteLine($"[Middleware] Token found: {token.Substring(0, Math.Min(20, token.Length))}...");
 
-        // validate token
-        var userId = await tokenService.ValidateToken(token);
+            
+            var userId = await tokenService.ValidateToken(token);
+            if (userId == null)
+            {
+                Console.WriteLine("[Middleware] Token validation failed");
+                await next(context);
+                return;
+            }
 
-        // if token is invalid then throw exception
-        if (userId == null) throw new Exception("Invalid token");
+            Console.WriteLine($"[Middleware] Token valid for userId: {userId}");
 
-        // get user by id
-        var getUserByIdQuery = new GetUserByIdQuery(userId.Value);
+            
+            var getUserByIdQuery = new GetUserByIdQuery(userId.Value);
+            var user = await userQueryService.Handle(getUserByIdQuery);
+            
+            if (user != null)
+            {
+                Console.WriteLine($"[Middleware] User found: {user.Username}");
+                context.Items["User"] = user;
+            }
+            else
+            {
+                Console.WriteLine("[Middleware] User not found in database");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Middleware] Error in authorization: {ex.Message}");
 
-        // set user in HttpContext.Items["User"]
+        }
 
-        var user = await userQueryService.Handle(getUserByIdQuery);
-        Console.WriteLine("Successful authorization. Updating Context...");
-        context.Items["User"] = user;
-        Console.WriteLine("Continuing with Middleware Pipeline");
-        // call next middleware
+        Console.WriteLine("[Middleware] Continuing to next middleware...");
         await next(context);
     }
 }
