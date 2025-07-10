@@ -12,7 +12,7 @@ using OsitoPolarPlatform.API.bc_technicians.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Repositories;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Services;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Configuration;
-using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Services;
+
 using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServices;
