@@ -1,5 +1,4 @@
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
 using OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Resources;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Transform;
@@ -8,9 +7,6 @@ public static class CreateServiceRequestCommandFromResourceAssembler
 {
     public static CreateServiceRequestCommand ToCommandFromResource(CreateServiceRequestResource resource)
     {
-        Enum.TryParse(resource.Priority, true, out EPriority priority);
-        Enum.TryParse(resource.Urgency, true, out EUrgency urgency);
-        Enum.TryParse(resource.ServiceType, true, out EServiceType serviceType); 
         return new CreateServiceRequestCommand(
             resource.Title,
             resource.Description,
@@ -18,10 +14,10 @@ public static class CreateServiceRequestCommandFromResourceAssembler
             resource.ClientId, 
             resource.CompanyId,
             resource.EquipmentId,
-            serviceType, 
+            resource.ServiceType,
             resource.ReportedByUserId,
-            priority,
-            urgency,
+            resource.Priority,
+            resource.Urgency,
             resource.IsEmergency,
             resource.ScheduledDate,
             resource.TimeSlot,
