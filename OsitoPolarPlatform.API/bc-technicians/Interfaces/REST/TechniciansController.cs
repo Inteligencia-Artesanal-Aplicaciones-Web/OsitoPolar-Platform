@@ -67,7 +67,7 @@ public class TechniciansController(ITechnicianCommandService techniciansService,
         var getAverageRatingQuery = new GetTechnicianAverageRatingQuery(technicianId);
         var averageRating = await technicianQueryService.Handle(getAverageRatingQuery);
 
-        var resource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician, averageRating);
+        var resource = TechnicianResourceFromEntityAssembler.ToResourceFromEntity(technician, (decimal)averageRating);
         return Ok(resource);
     }
 
