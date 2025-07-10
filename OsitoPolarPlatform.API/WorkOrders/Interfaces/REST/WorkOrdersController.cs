@@ -89,7 +89,7 @@ public class WorkOrdersController(
     /// <param name="workOrderId">The ID of the Work Order.</param>
     /// <param name="resource">The resource containing the new status (as string).</param>
     /// <returns>The updated Work Order resource.</returns>
-    [HttpPut("{workOrderId:int}/status")]
+    [HttpPatch("{workOrderId:int}/status")]
     [SwaggerOperation(
         Summary = "Update Work Order Status",
         Description = "Updates the status of a work order. This will also reflect the status in the associated Service Request.",
@@ -115,7 +115,7 @@ public class WorkOrdersController(
     /// <param name="workOrderId">The ID of the Work Order.</param>
     /// <param name="resource">The resource containing resolution details.</param>
     /// <returns>The updated Work Order resource.</returns>
-    [HttpPut("{workOrderId:int}/resolution")]
+    [HttpPatch("{workOrderId:int}/resolution")]
     [SwaggerOperation(
         Summary = "Add Work Order Resolution Details",
         Description = "Adds resolution details and marks the work order as resolved.",
