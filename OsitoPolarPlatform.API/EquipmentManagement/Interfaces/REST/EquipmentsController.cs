@@ -36,15 +36,29 @@ public class EquipmentsController : ControllerBase
     [HttpGet]
     [SwaggerOperation(
         Summary = "Get All Equipments",
-        Description = "Returns a list of all equipments in the system.",
+        Description = "Gets all equipments or filters by owner using query parameter",
         OperationId = "GetAllEquipments")]
-    [SwaggerResponse(StatusCodes.Status200OK, "List of equipments", typeof(IEnumerable<EquipmentResource>))]
-    public async Task<ActionResult<IEnumerable<EquipmentResource>>> GetAllEquipments()
+    [SwaggerResponse(StatusCodes.Status200OK, "Equipments retrieved successfully")]
+    public async Task<IActionResult> GetAllEquipments([FromQuery(Name = "owner-id")] int? ownerId = null)
     {
-        var getAllEquipmentsQuery = new GetAllEquipmentsQuery();
-        var equipments = await _equipmentQueryService.Handle(getAllEquipmentsQuery);
-        var equipmentResources = equipments.Select(EquipmentResourceFromEntityAssembler.ToResourceFromEntity);
-        return Ok(equipmentResources);
+        try
+        {
+            if (ownerId.HasValue)
+            {
+                var query = new GetEquipmentsByOwnerIdQuery(ownerId.Value);
+                var equipmentsByOwner = await _equipmentQueryService.Handle(query);
+                var ownerResources = equipmentsByOwner.Select(EquipmentResourceFromEntityAssembler.ToResourceFromEntity);
+                return Ok(ownerResources);
+            }
+            var getAllQuery = new GetAllEquipmentsQuery();
+            var equipments = await _equipmentQueryService.Handle(getAllQuery);
+            var resources = equipments.Select(EquipmentResourceFromEntityAssembler.ToResourceFromEntity);
+            return Ok(resources);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     /// <summary>
@@ -71,27 +85,9 @@ public class EquipmentsController : ControllerBase
         return Ok(equipmentResource);
     }
 
-    /// <summary>
-    /// Gets equipments by owner ID.
-    /// </summary>
-    /// <param name="ownerId">Owner identifier</param>
-    /// <returns>List of equipments owned by the specified owner</returns>
-    [HttpGet("owners/{ownerId:int}")]
-    [SwaggerOperation(
-        Summary = "Get Equipments by Owner",
-        Description = "Returns equipments owned by a specific owner.",
-        OperationId = "GetEquipmentsByOwnerId")]
-    [SwaggerResponse(StatusCodes.Status200OK, "List of equipments for the owner", typeof(IEnumerable<EquipmentResource>))]
-    public async Task<ActionResult<IEnumerable<EquipmentResource>>> GetEquipmentsByOwnerId(int ownerId)
-    {
-        var getEquipmentsByOwnerIdQuery = new GetEquipmentsByOwnerIdQuery(ownerId);
-        var equipments = await _equipmentQueryService.Handle(getEquipmentsByOwnerIdQuery);
-        var equipmentResources = equipments.Select(EquipmentResourceFromEntityAssembler.ToResourceFromEntity);
-        return Ok(equipmentResources);
-    }
 
     /// <summary>
-    /// Creates a new equipment in the system.
+    /// Creates  new equipment in the system.
     /// </summary>
     /// <param name="resource">Equipment creation data</param>
     /// <returns>Created equipment</returns>
@@ -328,6 +324,8 @@ public class EquipmentsController : ControllerBase
     /// <param name="equipmentId">Equipment identifier</param>
     /// <param name="type">Type of readings</param>
     /// <returns>Redirect to Analytics endpoint</returns>
+    ///
+    /// 
     [HttpGet("{equipmentId:int}/readings")]
     [SwaggerOperation(
         Summary = "Get Equipment Readings",

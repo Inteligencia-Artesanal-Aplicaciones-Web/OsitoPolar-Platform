@@ -6,7 +6,7 @@ public record TechnicianResource(
     string Specialization,
     string Phone,
     string Email,
-    double AverageRating,
+    decimal AverageRating,
     string Availability,
     int CompanyId
 );
