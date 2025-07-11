@@ -1,3 +1,5 @@
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
+
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Resources;
 
 public record CreateServiceRequestResource(
@@ -7,10 +9,10 @@ public record CreateServiceRequestResource(
     int ClientId, 
     int CompanyId,
     int EquipmentId,
-    string ServiceType,
+    EServiceType ServiceType,  
     int? ReportedByUserId,
-    string Priority,
-    string Urgency,
+    EPriority Priority,        
+    EUrgency Urgency,         
     bool IsEmergency,
     DateTimeOffset? ScheduledDate,
     string TimeSlot,

@@ -20,6 +20,8 @@ public partial class User(string username, string passwordHash)
     public string Username { get; private set; } = username;
 
     [JsonIgnore] public string PasswordHash { get; private set; } = passwordHash;
+    
+    public int? SubscriptionId { get; private set; }
 
     /**
      * <summary>
@@ -44,6 +46,19 @@ public partial class User(string username, string passwordHash)
     public User UpdatePasswordHash(string passwordHash)
     {
         PasswordHash = passwordHash;
+        return this;
+    }
+
+    /**
+     * <summary>
+     *     Update the subscription plan
+     * </summary>
+     * <param name="subscriptionId">The new subscription plan ID</param>
+     * <returns>The updated user</returns>
+     */
+    public User UpdateSubscription(int? subscriptionId)
+    {
+        SubscriptionId = subscriptionId;
         return this;
     }
 }
