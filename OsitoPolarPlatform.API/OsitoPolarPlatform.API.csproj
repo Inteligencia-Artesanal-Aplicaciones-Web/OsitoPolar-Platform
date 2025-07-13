@@ -42,8 +42,6 @@
       <Folder Include="SubscriptionsAndPayments\Infrastructure\External\Services\" />
     </ItemGroup>
     -->
-    <ItemGroup>
-        <Folder Include="Shared\Infrastructure\Persistence\EFC\Migrations\" />
-    </ItemGroup>
+    
 
 </Project>
