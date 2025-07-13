@@ -237,20 +237,32 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<AppDbContext>();
+    var logger = services.GetRequiredService<ILogger<Program>>();
 
     try
     {
-        context.Database.Migrate();
-        Console.WriteLine("Database migrations applied successfully.");
+        logger.LogInformation("Checking for pending migrations...");
+        var pendingMigrations = context.Database.GetPendingMigrations().ToList();
+        logger.LogInformation("Found {Count} pending migrations: {Migrations}", 
+            pendingMigrations.Count, 
+            string.Join(", ", pendingMigrations));
+        
+        if (pendingMigrations.Any())
+        {
+            logger.LogInformation("Applying migrations...");
+            context.Database.Migrate();
+            logger.LogInformation("Database migrations applied successfully.");
+        }
+        else
+        {
+            logger.LogInformation("No pending migrations found.");
+        }
     }
-    catch (Exception e)
+    catch (Exception ex)
     {
-        Console.WriteLine($"Error applying database migrations: {e.Message}");
+        logger.LogError(ex, "Error applying database migrations: {Message}", ex.Message);
         throw;
     }
-    
-    
-    
     //context.Database.EnsureCreated();
 }
 
