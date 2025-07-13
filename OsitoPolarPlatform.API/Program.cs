@@ -1,6 +1,8 @@
 using Cortex.Mediator.Commands;
 using Cortex.Mediator.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.OpenApi.Models;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
@@ -228,6 +230,11 @@ using (var scope = app.Services.CreateScope())
     try
     {
         logger.LogInformation("Checking for pending migrations...");
+        var migrationsAssembly = context.Database.GetService<IMigrationsAssembly>();
+        logger.LogInformation("Migrations Assembly: {AssemblyName}", migrationsAssembly.Assembly.FullName);
+        var migrationIds = migrationsAssembly.Migrations.Keys.ToList();
+        logger.LogInformation("Detected migrations: {Migrations}", string.Join(", ", migrationIds));
+
         var appliedMigrations = context.Database.GetAppliedMigrations().ToList();
         var pendingMigrations = context.Database.GetPendingMigrations().ToList();
         logger.LogInformation("Applied migrations: {Applied}", string.Join(", ", appliedMigrations));
