@@ -11,8 +11,6 @@ using OsitoPolarPlatform.API.bc_technicians.Application.Internal.CommandServices
 using OsitoPolarPlatform.API.bc_technicians.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Repositories;
 using OsitoPolarPlatform.API.bc_technicians.Domain.Services;
-using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Configuration;
-
 using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServices;
@@ -59,11 +57,9 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence
 
 var builder = WebApplication.CreateBuilder(args);
 
-
 var isProduction = builder.Environment.IsProduction() || 
-                  Environment.GetEnvironmentVariable("RENDER") != null ||
-                  Environment.GetEnvironmentVariable("PORT") != null;
-
+                   Environment.GetEnvironmentVariable("RENDER") != null ||
+                   Environment.GetEnvironmentVariable("PORT") != null;
 
 if (isProduction)
 {
@@ -77,14 +73,8 @@ else
 }
 
 // Add services to the container.
-
 builder.Services.AddControllers();
-// Configure Lower Case URLs
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
-
-
-// Configure CORS for prod
-// Configure Kebab Case Route Naming Convention
 builder.Services.AddControllers(options => options.Conventions.Add(new KebabCaseRouteNamingConvention()));
 
 // Configure CORS
@@ -95,8 +85,8 @@ builder.Services.AddCors(options =>
         options.AddPolicy("AllowAll", policy =>
         {
             policy.AllowAnyOrigin()
-                .AllowAnyMethod()
-                .AllowAnyHeader();
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
         });
     }
     else
@@ -110,32 +100,26 @@ builder.Services.AddCors(options =>
                     "http://localhost:5173",   
                     "http://127.0.0.1:3000",
                     "https://localhost:5173")  
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials();
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
         });
     }
 });
 
-//Profiles Bounded Context
+// Profiles Bounded Context
 builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
 builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 
-
-// IAM Bounded Context Injection Configuration
-
-// TokenSettings Configuration
-
+// IAM Bounded Context
 builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
-
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserCommandService, UserCommandService>();
 builder.Services.AddScoped<IUserQueryService, UserQueryService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IHashingService, HashingService>();
 builder.Services.AddScoped<IIamContextFacade, IamContextFacade>();
-
 
 // Shared Bounded Context
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -144,22 +128,23 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
+
 // Analytics Bounded Context
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IAnalyticsCommandService, AnalyticsCommandService>();
 builder.Services.AddScoped<IAnalyticsQueryService, AnalyticsQueryService>();
 
-//technicians Bounded Context
+// Technicians Bounded Context
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
 builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
 builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
 
-//Equipment Bounded Context
+// Equipment Bounded Context
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
 builder.Services.AddScoped<IEquipmentCommandService, EquipmentCommandService>();
 builder.Services.AddScoped<IEquipmentQueryService, EquipmentQueryService>();
 
-// Configure Dependency Injection for Work Orders Bounded Context
+// Work Orders Bounded Context
 builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
 builder.Services.AddScoped<IWorkOrderCommandService, WorkOrderCommandService>();
 builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
@@ -169,30 +154,17 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
 
-
-
-
-
-
-
 // Mediator Configuration
-
-// Add Mediator Injection Configuration
 builder.Services.AddScoped(typeof(ICommandPipelineBehavior<>), typeof(LoggingCommandBehavior<>));
-
-// Add Cortex Mediator for Event Handling
 builder.Services.AddCortexMediator(
     configuration: builder.Configuration,
-    handlerAssemblyMarkerTypes: new[] { typeof(Program) }, configure: options =>
+    handlerAssemblyMarkerTypes: new[] { typeof(Program) },
+    configure: options =>
     {
         options.AddOpenCommandPipelineBehavior(typeof(LoggingCommandBehavior<>));
     });
 
-
-
-
-
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Swagger Configuration
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -222,13 +194,23 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Add Database Connection
+// Configure DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (connectionString is null)
-    throw new Exception("Database connection string is not set.");
-
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySQL(connectionString));
+{
+    options.UseMySQL(connectionString, mysqlOptions => 
+            mysqlOptions.MigrationsAssembly("OsitoPolarPlatform.API"))
+           .EnableSensitiveDataLogging(true)
+           .EnableDetailedErrors(true);
+});
+
+// Add logging
+builder.Services.AddLogging(logging =>
+{
+    logging.AddConsole();
+    logging.AddDebug();
+    logging.SetMinimumLevel(LogLevel.Debug);
+});
 
 var app = builder.Build();
 
@@ -242,10 +224,10 @@ using (var scope = app.Services.CreateScope())
     try
     {
         logger.LogInformation("Checking for pending migrations...");
+        var appliedMigrations = context.Database.GetAppliedMigrations().ToList();
         var pendingMigrations = context.Database.GetPendingMigrations().ToList();
-        logger.LogInformation("Found {Count} pending migrations: {Migrations}", 
-            pendingMigrations.Count, 
-            string.Join(", ", pendingMigrations));
+        logger.LogInformation("Applied migrations: {Applied}", string.Join(", ", appliedMigrations));
+        logger.LogInformation("Pending migrations: {Pending}", string.Join(", ", pendingMigrations));
         
         if (pendingMigrations.Any())
         {
@@ -263,39 +245,26 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "Error applying database migrations: {Message}", ex.Message);
         throw;
     }
-    //context.Database.EnsureCreated();
 }
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "OsitoPolar API V1");
     c.RoutePrefix = string.Empty;
-    if (isProduction)
-    {
-        c.RoutePrefix = string.Empty; 
-    }
 });
-
-// app.UseHttpsRedirection();
 
 if (!isProduction)
 {
     app.UseHttpsRedirection();
 }
 
-// CORS
 app.UseCors("AllowAll");
-
 app.UseRequestAuthorization();
-
 app.UseRouting();
-
 app.UseAuthorization();
-
 app.MapControllers();
-
 
 Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
 Console.WriteLine($"🔗 Connection String configured: {!string.IsNullOrEmpty(connectionString)}");
@@ -307,7 +276,6 @@ if (isProduction)
     Console.WriteLine($"📍 Equipment API: http://0.0.0.0:{port}/api/v1/equipments");
     Console.WriteLine($"📍 Service Request API: http://0.0.0.0:{port}/api/v1/service-requests");
     Console.WriteLine($"📍 Technician API: http://0.0.0.0:{port}/api/v1/technicians");
-
 }
 else
 {
