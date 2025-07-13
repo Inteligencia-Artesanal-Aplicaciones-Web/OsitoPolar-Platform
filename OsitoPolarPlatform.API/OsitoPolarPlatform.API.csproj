@@ -43,7 +43,6 @@
     </ItemGroup>
     -->
     <ItemGroup>
-        <Compile Include="Shared/Infrastructure/Persistence/EFC/Migrations/*.cs" />
         <EmbeddedResource Include="Shared/Infrastructure/Persistence/EFC/Migrations/*.cs" />
     </ItemGroup>
     
