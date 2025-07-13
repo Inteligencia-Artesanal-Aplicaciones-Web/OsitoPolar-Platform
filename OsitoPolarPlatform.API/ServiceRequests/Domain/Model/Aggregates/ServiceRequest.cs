@@ -19,8 +19,8 @@ public partial class ServiceRequest
     public bool IsEmergency { get; private set; }
     public EServiceType ServiceType { get; private set; }
 
-    public int ClientId { get; private set; } 
-    public int CompanyId { get; private set; }
+    public int? ClientId { get; set; } 
+    public int? CompanyId { get; set; }
     public int EquipmentId { get; private set; }
     public int? AssignedTechnicianId { get; private set; }
     public DateTimeOffset? ScheduledDate { get; private set; }

@@ -16,7 +16,7 @@
         <!-- EntityFrameworkCore Database Persistence related packages -->
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.6"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.6"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Design" Version="1.1.6"/>
+        <!--<PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Design" Version="1.1.6"/>-->
         <!-- MySQL Database Persistence related packages -->
         <PackageReference Include="MySql.EntityFrameworkCore" Version="9.0.3"/>
         <!-- Audit Trails related packages -->
@@ -36,9 +36,14 @@
         <PackageReference Include="Cortex.Mediator" Version="1.6.1"/>
     </ItemGroup>
 
+    <!--
     <ItemGroup>
       <Folder Include="EquipmentManagement\Interfaces\" />
       <Folder Include="SubscriptionsAndPayments\Infrastructure\External\Services\" />
+    </ItemGroup>
+    -->
+    <ItemGroup>
+        <Folder Include="Shared\Infrastructure\Persistence\EFC\Migrations\" />
     </ItemGroup>
 
 </Project>

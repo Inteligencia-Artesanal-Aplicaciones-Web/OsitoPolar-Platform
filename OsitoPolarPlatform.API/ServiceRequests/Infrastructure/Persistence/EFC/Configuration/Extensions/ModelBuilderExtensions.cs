@@ -31,6 +31,13 @@ public static class ModelBuilderExtensions
         builder.Entity<ServiceRequest>().Property(sr => sr.IsEmergency).IsRequired();
         builder.Entity<ServiceRequest>().Property(sr => sr.ServiceType).IsRequired().HasConversion<string>(); 
         
+        builder.Entity<ServiceRequest>()
+            .Property(sr => sr.ClientId)
+            .IsRequired(false); // Make nullable
+        builder.Entity<ServiceRequest>()
+            .Property(sr => sr.CompanyId)
+            .IsRequired(false); // Make nullable
+        
         builder.Entity<ServiceRequest>().Property(sr => sr.ScheduledDate); 
         builder.Entity<ServiceRequest>().Property(sr => sr.TimeSlot).HasMaxLength(50);
         builder.Entity<ServiceRequest>().Property(sr => sr.ServiceAddress).HasMaxLength(255);
