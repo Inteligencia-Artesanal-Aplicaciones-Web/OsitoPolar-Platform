@@ -205,7 +205,7 @@ if (string.IsNullOrEmpty(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseMySQL(connectionString, mysqlOptions => 
-            mysqlOptions.MigrationsAssembly("OsitoPolarPlatform.API"))
+        mysqlOptions.MigrationsAssembly("OsitoPolarPlatform.API"))
            .EnableSensitiveDataLogging(isProduction ? false : true)
            .EnableDetailedErrors(isProduction ? false : true);
 });
@@ -232,6 +232,12 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Checking for pending migrations...");
         var migrationsAssembly = context.Database.GetService<IMigrationsAssembly>();
         logger.LogInformation("Migrations Assembly: {AssemblyName}", migrationsAssembly.Assembly.FullName);
+        
+        // Log all assemblies to check if OsitoPolarPlatform.API is loaded
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        logger.LogInformation("Loaded assemblies: {Assemblies}", string.Join(", ", assemblies.Select(a => a.FullName)));
+
+        // Explicitly load migrations
         var migrationIds = migrationsAssembly.Migrations.Keys.ToList();
         logger.LogInformation("Detected migrations: {Migrations}", string.Join(", ", migrationIds));
 
