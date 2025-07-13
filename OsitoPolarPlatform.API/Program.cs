@@ -237,7 +237,21 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<AppDbContext>();
-    context.Database.EnsureCreated();
+
+    try
+    {
+        context.Database.Migrate();
+        Console.WriteLine("Database migrations applied successfully.");
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine($"Error applying database migrations: {e.Message}");
+        throw;
+    }
+    
+    
+    
+    //context.Database.EnsureCreated();
 }
 
 // Configure the HTTP request pipeline.
