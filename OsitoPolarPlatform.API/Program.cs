@@ -196,12 +196,16 @@ builder.Services.AddSwaggerGen(options =>
 
 // Configure DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrEmpty(connectionString))
+{
+    throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+}
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseMySQL(connectionString, mysqlOptions => 
             mysqlOptions.MigrationsAssembly("OsitoPolarPlatform.API"))
-           .EnableSensitiveDataLogging(true)
-           .EnableDetailedErrors(true);
+           .EnableSensitiveDataLogging(isProduction ? false : true)
+           .EnableDetailedErrors(isProduction ? false : true);
 });
 
 // Add logging

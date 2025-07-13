@@ -42,6 +42,8 @@
       <Folder Include="SubscriptionsAndPayments\Infrastructure\External\Services\" />
     </ItemGroup>
     -->
-    
+    <ItemGroup>
+        <Compile Include="Migrations\*.cs" />
+    </ItemGroup>
 
 </Project>
