@@ -17,7 +17,7 @@ namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
  *     This class is used to handle user requests
  * </remarks>
  */
-[Authorize]
+//[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]

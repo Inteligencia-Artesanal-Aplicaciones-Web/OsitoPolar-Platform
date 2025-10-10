@@ -59,6 +59,23 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Procesar placeholders en la configuración
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?.Replace("${DB_HOST}", Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost")
+    .Replace("${DB_NAME}", Environment.GetEnvironmentVariable("DB_NAME") ?? "ositopolar")
+    .Replace("${DB_USER}", Environment.GetEnvironmentVariable("DB_USER") ?? "root")
+    .Replace("${DB_PASSWORD}", Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "");
+
+// Actualizar la configuración con los valores procesados
+builder.Configuration["ConnectionStrings:DefaultConnection"] = connectionString;
+builder.Configuration["Stripe:PublishableKey"] = 
+    Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY") ?? builder.Configuration["Stripe:PublishableKey"];
+builder.Configuration["Stripe:SecretKey"] = 
+    Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY") ?? builder.Configuration["Stripe:SecretKey"];
+builder.Configuration["Stripe:WebhookSecret"] = 
+    Environment.GetEnvironmentVariable("STRIPE_WEBHOOK_SECRET") ?? builder.Configuration["Stripe:WebhookSecret"];
+
+
 var isProduction = builder.Environment.IsProduction() || 
                    Environment.GetEnvironmentVariable("RENDER") != null ||
                    Environment.GetEnvironmentVariable("PORT") != null;
@@ -115,6 +132,8 @@ builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 
 // IAM Bounded Context
+
+/*
 builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserCommandService, UserCommandService>();
@@ -122,7 +141,7 @@ builder.Services.AddScoped<IUserQueryService, UserQueryService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IHashingService, HashingService>();
 builder.Services.AddScoped<IIamContextFacade, IamContextFacade>();
-
+*/
 // Shared Bounded Context
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -171,7 +190,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.EnableAnnotations();
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+   /* options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
         Description = "Please enter token",
@@ -194,10 +213,11 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
+    */
 });
 
 // Configure DbContext
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
 if (string.IsNullOrEmpty(connectionString))
 {
     throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -278,7 +298,7 @@ if (!isProduction)
 }
 
 app.UseCors("AllowAll");
-app.UseRequestAuthorization();
+//app.UseRequestAuthorization();
 app.UseRouting();
 app.UseAuthorization();
 app.MapControllers();

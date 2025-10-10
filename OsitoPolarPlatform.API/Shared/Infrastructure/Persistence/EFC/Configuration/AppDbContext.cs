@@ -19,8 +19,11 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
 {
     protected override void OnConfiguring(DbContextOptionsBuilder builder)
     {
-        // Add the created and updated interceptor
-        builder.AddCreatedUpdatedInterceptor();
+        // Solo agregar el interceptor si NO es tiempo de diseño (migraciones)
+        if (!builder.Options.Extensions.Any(e => e.GetType().Name.Contains("DesignTime")))
+        {
+            builder.AddCreatedUpdatedInterceptor();
+        }
         base.OnConfiguring(builder);
     }
 
