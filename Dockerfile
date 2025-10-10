@@ -21,6 +21,9 @@ RUN dotnet restore ./OsitoPolarPlatform.API
 # Copy the rest of the application files
 COPY . .
 
+# Ensure migrations are included
+COPY OsitoPolarPlatform.API/Shared/Infrastructure/Persistence/EFC/Migrations/*.cs OsitoPolarPlatform.API/Shared/Infrastructure/Persistence/EFC/Migrations/
+
 # Step 2: Deploy the application to builder stage
 # Publish the application in Release mode
 RUN dotnet publish ./OsitoPolarPlatform.API -c Release -o out
