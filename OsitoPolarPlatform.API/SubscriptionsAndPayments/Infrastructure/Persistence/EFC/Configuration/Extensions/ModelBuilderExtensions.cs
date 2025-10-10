@@ -48,8 +48,7 @@ public static class ModelBuilderExtensions
                 BillingCycle = BillingCycle.Monthly,
                 MaxEquipment = 6,
                 MaxClients = (int?)null,
-                CreatedDate = now,
-                UpdatedDate = now
+                
             },
             new 
             {
@@ -58,8 +57,7 @@ public static class ModelBuilderExtensions
                 BillingCycle = BillingCycle.Monthly,
                 MaxEquipment = 12,
                 MaxClients = (int?)null,
-                CreatedDate = now,
-                UpdatedDate = now
+                
             },
             new 
             {
@@ -68,8 +66,7 @@ public static class ModelBuilderExtensions
                 BillingCycle = BillingCycle.Monthly,
                 MaxEquipment = 24,
                 MaxClients = (int?)null,
-                CreatedDate = now,
-                UpdatedDate = now
+                
             },
             new 
             {
@@ -78,8 +75,7 @@ public static class ModelBuilderExtensions
                 BillingCycle = BillingCycle.Monthly,
                 MaxEquipment = (int?)null,
                 MaxClients = 10,
-                CreatedDate = now,
-                UpdatedDate = now
+                
             },
             new 
             {
@@ -88,8 +84,7 @@ public static class ModelBuilderExtensions
                 BillingCycle = BillingCycle.Monthly,
                 MaxEquipment = (int?)null,
                 MaxClients = 30,
-                CreatedDate = now,
-                UpdatedDate = now
+                
             },
             new 
             {
@@ -98,8 +93,7 @@ public static class ModelBuilderExtensions
                 BillingCycle = BillingCycle.Monthly,
                 MaxEquipment = (int?)null,
                 MaxClients = 999999,
-                CreatedDate = now,
-                UpdatedDate = now
+                
             }
         );
     }

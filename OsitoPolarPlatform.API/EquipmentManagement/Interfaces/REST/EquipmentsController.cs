@@ -1,5 +1,7 @@
 ﻿using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
+using OsitoPolarPlatform.API.Analytics.Domain.Model.Commands;
+using OsitoPolarPlatform.API.Analytics.Domain.Services;
 using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Commands;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Queries;
@@ -20,13 +22,16 @@ public class EquipmentsController : ControllerBase
 {
     private readonly IEquipmentCommandService _equipmentCommandService;
     private readonly IEquipmentQueryService _equipmentQueryService;
+    private readonly IAnalyticsCommandService _analyticsCommandService;
 
     public EquipmentsController(
         IEquipmentCommandService equipmentCommandService,
-        IEquipmentQueryService equipmentQueryService)
+        IEquipmentQueryService equipmentQueryService,
+        IAnalyticsCommandService analyticsCommandService)
     {
         _equipmentCommandService = equipmentCommandService;
         _equipmentQueryService = equipmentQueryService;
+        _analyticsCommandService = analyticsCommandService;
     }
 
     /// <summary>
@@ -272,50 +277,79 @@ public class EquipmentsController : ControllerBase
     /// <param name="resource">Reading data</param>
     /// <returns>Created reading confirmation</returns>
     [HttpPost("{equipmentId:int}/readings")]
-    [SwaggerOperation(
-        Summary = "Create Equipment Reading",
-        Description = "Records a new reading (temperature, energy) for equipment. Moved from Analytics to Equipment Management per professor's requirements.",
-        OperationId = "CreateEquipmentReading")]
-    [SwaggerResponse(StatusCodes.Status201Created, "Reading created successfully")]
-    [SwaggerResponse(StatusCodes.Status404NotFound, "Equipment not found")]
-    [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid reading data")]
-    public async Task<ActionResult> CreateEquipmentReading(
-        int equipmentId,
-        [FromBody] CreateEquipmentReadingResource resource)
+[SwaggerOperation(
+    Summary = "Create Equipment Reading",
+    Description = "Records a new reading (temperature, energy) for equipment.",
+    OperationId = "CreateEquipmentReading")]
+[SwaggerResponse(StatusCodes.Status201Created, "Reading created successfully")]
+[SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid reading data")]
+[SwaggerResponse(StatusCodes.Status404NotFound, "Equipment not found")]
+public async Task<ActionResult> CreateEquipmentReading(
+    int equipmentId,
+    [FromBody] CreateEquipmentReadingResource resource)
+{
+    if (!ModelState.IsValid)
+        return BadRequest(ModelState);
+
+    var equipment = await _equipmentQueryService.Handle(new GetEquipmentByIdQuery(equipmentId));
+    if (equipment == null)
+        return NotFound($"Equipment with ID {equipmentId} not found");
+
+    try
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        var equipment = await _equipmentQueryService.Handle(new GetEquipmentByIdQuery(equipmentId));
-        if (equipment == null)
-            return NotFound($"Equipment with ID {equipmentId} not found");
-
-        try
+        if (resource.Type?.ToLower() == "temperature")
         {
-            // Create the reading response
-            var reading = new {
-                id = new Random().Next(1000, 9999), // In real implementation, this would come from your command
-                equipmentId = equipmentId,
-                type = resource.Type,
-                value = resource.Value,
-                unit = resource.Unit,
-                timestamp = resource.Timestamp ?? DateTimeOffset.UtcNow,
-                status = resource.Status,
-                notes = resource.Notes
-            };
+            var command = new RecordTemperatureReadingCommand(
+                equipmentId,
+                resource.Value,
+                resource.Timestamp);
 
-            // Here you would typically:
-            // 1. Create appropriate command (RecordTemperatureReadingCommand or RecordEnergyReadingCommand)
-            // 2. Send to Analytics bounded context via command bus or direct service call
-            // 3. Return the created reading
-
-            return CreatedAtAction(nameof(GetEquipmentById), new { equipmentId }, reading);
+            var reading = await _analyticsCommandService.Handle(command);
+            
+            return CreatedAtAction(
+                nameof(GetEquipmentById), 
+                new { equipmentId }, 
+                new {
+                    id = reading!.Id,
+                    equipmentId = reading.EquipmentId,
+                    type = "temperature",
+                    value = reading.Temperature,
+                    unit = "celsius",
+                    timestamp = reading.Timestamp,
+                    status = reading.Status.ToString().ToLower()
+                });
         }
-        catch (Exception ex)
+        else if (resource.Type?.ToLower() == "energy")
         {
-            return BadRequest(new { message = ex.Message });
+            var command = new RecordEnergyReadingCommand(
+                equipmentId,
+                resource.Value,
+                resource.Unit ?? "watts");
+
+            var reading = await _analyticsCommandService.Handle(command);
+            
+            return CreatedAtAction(
+                nameof(GetEquipmentById), 
+                new { equipmentId }, 
+                new {
+                    id = reading!.Id,
+                    equipmentId = reading.EquipmentId,
+                    type = "energy",
+                    value = reading.Consumption,
+                    unit = reading.Unit,
+                    timestamp = reading.Timestamp,
+                    status = reading.Status.ToString().ToLower()
+                });
         }
+
+        return BadRequest("Invalid reading type. Use 'temperature' or 'energy'");
     }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(new { message = ex.Message });
+    }
+}
+
 
     /// <summary>
     /// Get equipment readings (delegated to Analytics)
