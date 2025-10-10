@@ -540,55 +540,43 @@ namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Migration
                         {
                             Id = 1,
                             BillingCycle = "Monthly",
-                            CreatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0)),
                             MaxEquipment = 6,
-                            PlanName = "Basic (Polar Bear) - $18.99/month - Up to 6 units",
-                            UpdatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0))
+                            PlanName = "Basic (Polar Bear) - $18.99/month - Up to 6 units"
                         },
                         new
                         {
                             Id = 2,
                             BillingCycle = "Monthly",
-                            CreatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0)),
                             MaxEquipment = 12,
-                            PlanName = "Standard (Snow Bear) - $35.13/month - Up to 12 units",
-                            UpdatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0))
+                            PlanName = "Standard (Snow Bear) - $35.13/month - Up to 12 units"
                         },
                         new
                         {
                             Id = 3,
                             BillingCycle = "Monthly",
-                            CreatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0)),
                             MaxEquipment = 24,
-                            PlanName = "Premium (Glacial Bear) - $67.56/month - Up to 24 units",
-                            UpdatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0))
+                            PlanName = "Premium (Glacial Bear) - $67.56/month - Up to 24 units"
                         },
                         new
                         {
                             Id = 4,
                             BillingCycle = "Monthly",
-                            CreatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0)),
                             MaxClients = 10,
-                            PlanName = "Small Company - $40.51/month - Up to 10 clients",
-                            UpdatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0))
+                            PlanName = "Small Company - $40.51/month - Up to 10 clients"
                         },
                         new
                         {
                             Id = 5,
                             BillingCycle = "Monthly",
-                            CreatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0)),
                             MaxClients = 30,
-                            PlanName = "Medium Company - $81.08/month - Up to 30 clients",
-                            UpdatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0))
+                            PlanName = "Medium Company - $81.08/month - Up to 30 clients"
                         },
                         new
                         {
                             Id = 6,
                             BillingCycle = "Monthly",
-                            CreatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0)),
                             MaxClients = 999999,
-                            PlanName = "Enterprise Premium - $162.16/month - Unlimited clients",
-                            UpdatedDate = new DateTimeOffset(new DateTime(2025, 7, 13, 9, 18, 56, 470, DateTimeKind.Unspecified).AddTicks(5404), new TimeSpan(0, 0, 0, 0, 0))
+                            PlanName = "Enterprise Premium - $162.16/month - Unlimited clients"
                         });
                 });
 
