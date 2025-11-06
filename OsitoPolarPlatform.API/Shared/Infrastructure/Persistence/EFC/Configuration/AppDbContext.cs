@@ -9,6 +9,8 @@ using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Confi
 using OsitoPolarPlatform.API.IAM.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Configuration.Extensions;
+using OsitoPolarPlatform.API.Notifications.Infrastructure.Persistence.EFC.Configuration.Extensions;
+using OsitoPolarPlatform.API.Notifications.Domain.Model.Entities;
 
 namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 
@@ -17,6 +19,9 @@ namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configura
 /// </summary>
 public class AppDbContext(DbContextOptions options) : DbContext(options)
 {
+    // Notifications
+    public DbSet<NotificationLog> NotificationLogs { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder builder)
     {
         // Add the created and updated interceptor
@@ -35,6 +40,7 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
         builder.ApplyWorkOrderConfiguration();       // Work Orders
         builder.ApplyTechnicianConfiguration();      // Technicians
         builder.ApplySubscriptionsConfiguration();  // Subscriptions and Payments
+        builder.ApplyNotificationsConfiguration();  // Notifications
         // Apply snake_case naming convention LAST (only once!)
         
         
