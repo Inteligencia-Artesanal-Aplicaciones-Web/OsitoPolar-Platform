@@ -1,9 +1,13 @@
 using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
+using OsitoPolarPlatform.API.IAM.Application.Internal.OutboundServices;
+using OsitoPolarPlatform.API.IAM.Domain.Model.Commands;
+using OsitoPolarPlatform.API.IAM.Domain.Repositories;
 using OsitoPolarPlatform.API.IAM.Domain.Services;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Transform;
+using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
@@ -13,41 +17,118 @@ namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
 [Route("api/v1/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
 [SwaggerTag("Available Authentication endpoints")]
-public class AuthenticationController(IUserCommandService userCommandService) : ControllerBase
+public class AuthenticationController(
+    IUserCommandService userCommandService,
+    ITwoFactorService twoFactorService,
+    IUserRepository userRepository,
+    IOwnerRepository ownerRepository,
+    IRenterProviderRepository renterProviderRepository) : ControllerBase
 {
     /**
      * <summary>
      *     Sign in endpoint. It allows authenticating a user
      * </summary>
      * <param name="signInResource">The sign-in resource containing username and password.</param>
-     * <returns>The authenticated user resource, including a JWT token</returns>
+     * <returns>The authenticated user resource, JWT token, or 2FA setup/verification requirement</returns>
      */
     [HttpPost("sign-in")]
     [AllowAnonymous]
     [SwaggerOperation(
         Summary = "Sign in",
-        Description = "Sign in a user",
+        Description = "Sign in a user. May require 2FA setup on first login or 2FA verification if enabled.",
         OperationId = "SignIn")]
-    [SwaggerResponse(StatusCodes.Status200OK, "The user was authenticated", typeof(AuthenticatedUserResource))]
+    [SwaggerResponse(StatusCodes.Status200OK, "The user was authenticated or needs 2FA setup/verification")]
     public async Task<IActionResult> SignIn([FromBody] SignInResource signInResource)
     {
         try
         {
             var signInCommand = SignInCommandFromResourceAssembler.ToCommandFromResource(signInResource);
             var authenticatedUser = await userCommandService.Handle(signInCommand);
+
+            // If token is empty, check if 2FA setup or verification is required
+            if (string.IsNullOrEmpty(authenticatedUser.token))
+            {
+                var userFor2FA = authenticatedUser.user;
+
+                // First login - needs 2FA setup (secret was just generated)
+                if (!userFor2FA.TwoFactorEnabled && !string.IsNullOrEmpty(userFor2FA.TwoFactorSecret))
+                {
+                    var twoFactorSetup = twoFactorService.GenerateTwoFactorSecret(userFor2FA.Username);
+
+                    return Ok(new
+                    {
+                        requiresTwoFactorSetup = true,
+                        username = userFor2FA.Username,
+                        qrCodeDataUrl = twoFactorSetup.QrCodeDataUrl,
+                        manualEntryKey = twoFactorSetup.ManualEntryKey,
+                        message = "First login detected. Please scan the QR code with Google Authenticator and enter the 6-digit code."
+                    });
+                }
+
+                // 2FA is enabled - needs verification code
+                if (userFor2FA.TwoFactorEnabled)
+                {
+                    return Ok(new
+                    {
+                        requires2FA = true,
+                        username = userFor2FA.Username,
+                        message = "Please enter your 6-digit code from Google Authenticator."
+                    });
+                }
+            }
+
+            // Normal authentication - detect user type and return token + profile info
+            var user = authenticatedUser.user;
+            var token = authenticatedUser.token;
+
+            // Check if user is an Owner
+            var owner = await ownerRepository.FindByUserIdAsync(user.Id);
+            if (owner != null)
+            {
+                return Ok(new
+                {
+                    id = user.Id,
+                    username = user.Username,
+                    token,
+                    userType = "Owner",
+                    profileId = owner.Id,
+                    balance = owner.Balance,
+                    planId = owner.PlanId,
+                    maxUnits = owner.MaxUnits
+                });
+            }
+
+            // Check if user is a Provider
+            var provider = await renterProviderRepository.FindByUserIdAsync(user.Id);
+            if (provider != null)
+            {
+                return Ok(new
+                {
+                    id = user.Id,
+                    username = user.Username,
+                    token,
+                    userType = "Provider",
+                    profileId = provider.Id,
+                    balance = provider.Balance,
+                    planId = provider.PlanId,
+                    maxClients = provider.MaxClients,
+                    companyName = provider.CompanyName
+                });
+            }
+
+            // User has no profile yet - return basic authentication
             var resource =
-                AuthenticatedUserResourceFromEntityAssembler.ToResourceFromEntity(authenticatedUser.user,
-                    authenticatedUser.token);
-            return Ok(resource);    
-        } catch (Exception ex)
+                AuthenticatedUserResourceFromEntityAssembler.ToResourceFromEntity(user, token);
+            return Ok(resource);
+        }
+        catch (Exception ex)
         {
             return Unauthorized(new
             {
-                message = "An error occurred while sign-in in",
+                message = "An error occurred while signing in",
                 error = ex.Message
             });
-        } 
-        
+        }
     }
 
     /**
@@ -70,8 +151,9 @@ public class AuthenticationController(IUserCommandService userCommandService) : 
         {
             var signUpCommand = SignUpCommandFromResourceAssembler.ToCommandFromResource(signUpResource);
             await userCommandService.Handle(signUpCommand);
-            return Ok(new { message = "User created successfully" });    
-        } catch (Exception ex)
+            return Ok(new { message = "User created successfully" });
+        }
+        catch (Exception ex)
         {
             return BadRequest(new
             {
@@ -79,6 +161,186 @@ public class AuthenticationController(IUserCommandService userCommandService) : 
                 error = ex.Message
             });
         }
-        
+    }
+
+    /**
+     * <summary>
+     *     Verify two-factor authentication code
+     * </summary>
+     * <param name="resource">The verification resource containing username and code</param>
+     * <returns>The authenticated user resource with JWT token</returns>
+     */
+    [HttpPost("verify-2fa")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Verify 2FA code",
+        Description = "Verify a 6-digit 2FA code from Google Authenticator. Used for first-time setup or login with 2FA enabled.",
+        OperationId = "VerifyTwoFactor")]
+    [SwaggerResponse(StatusCodes.Status200OK, "The 2FA code was verified and user is authenticated", typeof(AuthenticatedUserResource))]
+    public async Task<IActionResult> VerifyTwoFactor([FromBody] VerifyTwoFactorResource resource)
+    {
+        try
+        {
+            var command = new VerifyTwoFactorCommand(resource.Username, resource.Code);
+            var authenticatedUser = await userCommandService.Handle(command);
+
+            var user = authenticatedUser.user;
+            var token = authenticatedUser.token;
+
+            // Check if user is an Owner
+            var owner = await ownerRepository.FindByUserIdAsync(user.Id);
+            if (owner != null)
+            {
+                return Ok(new
+                {
+                    id = user.Id,
+                    username = user.Username,
+                    token,
+                    userType = "Owner",
+                    profileId = owner.Id,
+                    balance = owner.Balance,
+                    planId = owner.PlanId,
+                    maxUnits = owner.MaxUnits
+                });
+            }
+
+            // Check if user is a Provider
+            var provider = await renterProviderRepository.FindByUserIdAsync(user.Id);
+            if (provider != null)
+            {
+                return Ok(new
+                {
+                    id = user.Id,
+                    username = user.Username,
+                    token,
+                    userType = "Provider",
+                    profileId = provider.Id,
+                    balance = provider.Balance,
+                    planId = provider.PlanId,
+                    maxClients = provider.MaxClients,
+                    companyName = provider.CompanyName
+                });
+            }
+
+            // User has no profile yet - return basic authentication
+            var response = AuthenticatedUserResourceFromEntityAssembler.ToResourceFromEntity(user, token);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                message = "Failed to verify 2FA code",
+                error = ex.Message
+            });
+        }
+    }
+
+    /**
+     * <summary>
+     *     Enable two-factor authentication
+     * </summary>
+     * <param name="resource">The verification resource containing username and code</param>
+     * <returns>Success message</returns>
+     */
+    [HttpPost("enable-2fa")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Enable 2FA",
+        Description = "Re-enable two-factor authentication from user settings. Requires verifying a code to ensure user still has access to their authenticator.",
+        OperationId = "EnableTwoFactor")]
+    [SwaggerResponse(StatusCodes.Status200OK, "2FA was enabled successfully")]
+    public async Task<IActionResult> EnableTwoFactor([FromBody] VerifyTwoFactorResource resource)
+    {
+        try
+        {
+            var command = new EnableTwoFactorCommand(resource.Username, resource.Code);
+            await userCommandService.Handle(command);
+
+            return Ok(new { message = "Two-factor authentication enabled successfully" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                message = "Failed to enable 2FA",
+                error = ex.Message
+            });
+        }
+    }
+
+    /**
+     * <summary>
+     *     Disable two-factor authentication
+     * </summary>
+     * <param name="username">The username</param>
+     * <returns>Success message</returns>
+     */
+    [HttpPost("disable-2fa")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Disable 2FA",
+        Description = "Disable two-factor authentication from user settings. The secret is kept so user can re-enable easily.",
+        OperationId = "DisableTwoFactor")]
+    [SwaggerResponse(StatusCodes.Status200OK, "2FA was disabled successfully")]
+    public async Task<IActionResult> DisableTwoFactor([FromBody] string username)
+    {
+        try
+        {
+            var command = new DisableTwoFactorCommand(username);
+            await userCommandService.Handle(command);
+
+            return Ok(new { message = "Two-factor authentication disabled successfully" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                message = "Failed to disable 2FA",
+                error = ex.Message
+            });
+        }
+    }
+
+    /**
+     * <summary>
+     *     Get two-factor authentication status
+     * </summary>
+     * <param name="username">The username</param>
+     * <returns>2FA status information</returns>
+     */
+    [HttpGet("2fa-status")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Get 2FA status",
+        Description = "Get the two-factor authentication status for a user",
+        OperationId = "GetTwoFactorStatus")]
+    [SwaggerResponse(StatusCodes.Status200OK, "2FA status retrieved successfully", typeof(TwoFactorStatusResource))]
+    public async Task<IActionResult> GetTwoFactorStatus([FromQuery] string username)
+    {
+        try
+        {
+            var user = await userRepository.FindByUsernameAsync(username);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            var resource = new TwoFactorStatusResource(
+                Username: user.Username,
+                TwoFactorEnabled: user.TwoFactorEnabled,
+                TwoFactorConfigured: !string.IsNullOrEmpty(user.TwoFactorSecret)
+            );
+
+            return Ok(resource);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                message = "Failed to get 2FA status",
+                error = ex.Message
+            });
+        }
     }
 }

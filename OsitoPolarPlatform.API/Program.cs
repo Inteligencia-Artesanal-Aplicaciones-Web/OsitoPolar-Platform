@@ -36,6 +36,8 @@ using OsitoPolarPlatform.API.Profiles.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
 using OsitoPolarPlatform.API.Profiles.Domain.Services;
 using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Repositories;
+using OwnerRepository = OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Repositories.OwnerRepository;
+using RenterProviderRepository = OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Repositories.RenterProviderRepository;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.ServiceRequests.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
@@ -56,6 +58,12 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.Internal.Query
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Notifications.Domain.Repositories;
+using OsitoPolarPlatform.API.Notifications.Domain.Services;
+using OsitoPolarPlatform.API.Notifications.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.Notifications.Infrastructure.Services;
+using OsitoPolarPlatform.API.Notifications.Infrastructure.External.MailerSend;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -121,6 +129,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
 builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+builder.Services.AddScoped<IOwnerRepository, OwnerRepository>();
+builder.Services.AddScoped<IRenterProviderRepository, RenterProviderRepository>();
 
 
 // IAM Bounded Context Injection Configuration
@@ -134,6 +144,7 @@ builder.Services.AddScoped<IUserCommandService, UserCommandService>();
 builder.Services.AddScoped<IUserQueryService, UserQueryService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IHashingService, HashingService>();
+builder.Services.AddScoped<ITwoFactorService, OsitoPolarPlatform.API.IAM.Infrastructure.Security.TwoFactorService>();
 builder.Services.AddScoped<IIamContextFacade, IamContextFacade>();
 
 
@@ -168,6 +179,34 @@ builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
+
+// Payment Providers Configuration
+builder.Services.Configure<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Stripe.StripeConfiguration>(
+    builder.Configuration.GetSection("PaymentProviders:Stripe"));
+builder.Services.Configure<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Izipay.IzipayConfiguration>(
+    builder.Configuration.GetSection("PaymentProviders:Izipay"));
+
+// Register payment providers
+builder.Services.AddHttpClient<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Izipay.IzipayPaymentProvider>();
+builder.Services.AddScoped<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Stripe.StripePaymentProvider>();
+builder.Services.AddScoped<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Izipay.IzipayPaymentProvider>();
+
+// Notifications Bounded Context
+// MailerSend Configuration
+builder.Services.Configure<MailerSendConfiguration>(
+    builder.Configuration.GetSection("EmailProviders:MailerSend"));
+
+// Email Provider (using MailerSend)
+builder.Services.AddScoped<IEmailProvider, MailerSendEmailProvider>();
+
+// Template Renderer
+builder.Services.AddScoped<ITemplateRenderer, TemplateRenderer>();
+
+// Notification Repository
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+
+// Email Command Service
+builder.Services.AddScoped<IEmailCommandService, EmailCommandService>();
 
 
 
