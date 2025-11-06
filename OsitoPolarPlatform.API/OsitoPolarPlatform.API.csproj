@@ -194,4 +194,13 @@
       <_ContentIncludedByDefault Remove="tests\obj\project.assets.json" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Remove="Migrations\20251106034702_AddTwoFactorAuthenticationFields.cs" />
+      <Compile Remove="Migrations\20251106034702_AddTwoFactorAuthenticationFields.Designer.cs" />
+      <Compile Remove="Migrations\20251106031902_AddNotificationsContext.cs" />
+      <Compile Remove="Migrations\20251106031902_AddNotificationsContext.Designer.cs" />
+      <Compile Remove="Migrations\20251103053209_InitialCreate.cs" />
+      <Compile Remove="Migrations\20251103053209_InitialCreate.Designer.cs" />
+    </ItemGroup>
+
 </Project>
