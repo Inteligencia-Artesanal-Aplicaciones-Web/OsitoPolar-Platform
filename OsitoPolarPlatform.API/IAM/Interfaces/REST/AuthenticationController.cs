@@ -19,6 +19,7 @@ namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
 [SwaggerTag("Available Authentication endpoints")]
 public class AuthenticationController(
     IUserCommandService userCommandService,
+    IRegistrationService registrationService,
     ITwoFactorService twoFactorService,
     IUserRepository userRepository,
     IOwnerRepository ownerRepository,
@@ -165,6 +166,44 @@ public class AuthenticationController(
 
     /**
      * <summary>
+     *     Register with payment endpoint - Complete registration with Stripe payment and profile creation
+     * </summary>
+     * <param name="request">Registration request with payment and profile information</param>
+     * <returns>Registration response with generated credentials</returns>
+     */
+    [HttpPost("register")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Register with payment",
+        Description = "Complete user registration with Stripe payment and automatic Owner/Provider profile creation. Payment is processed synchronously and credentials are emailed upon success.",
+        OperationId = "RegisterWithPayment")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Registration completed successfully", typeof(RegisterWithPaymentResponse))]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Registration failed")]
+    public async Task<IActionResult> RegisterWithPayment([FromBody] RegisterWithPaymentResource request)
+    {
+        try
+        {
+            var response = await registrationService.RegisterWithPaymentAsync(request);
+
+            if (!response.Success)
+            {
+                return BadRequest(response);
+            }
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new RegisterWithPaymentResponse
+            {
+                Success = false,
+                ErrorMessage = $"Registration failed: {ex.Message}"
+            });
+        }
+    }
+
+    /**
+     * <summary>
      *     Verify two-factor authentication code
      * </summary>
      * <param name="resource">The verification resource containing username and code</param>
@@ -238,6 +277,49 @@ public class AuthenticationController(
 
     /**
      * <summary>
+     *     Initiate two-factor authentication setup
+     * </summary>
+     * <param name="request">The request containing username</param>
+     * <returns>QR code and manual entry key for setting up 2FA</returns>
+     */
+    [HttpPost("initiate-2fa")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Initiate 2FA setup",
+        Description = "Generate QR code and manual entry key to set up or reset two-factor authentication",
+        OperationId = "InitiateTwoFactor")]
+    [SwaggerResponse(StatusCodes.Status200OK, "2FA setup information generated successfully")]
+    public async Task<IActionResult> InitiateTwoFactor([FromBody] UsernameRequest request)
+    {
+        try
+        {
+            var user = await userRepository.FindByUsernameAsync(request.Username);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            var twoFactorSetup = twoFactorService.GenerateTwoFactorSecret(user.Username);
+
+            return Ok(new
+            {
+                qrCodeDataUrl = twoFactorSetup.QrCodeDataUrl,
+                manualEntryKey = twoFactorSetup.ManualEntryKey,
+                message = "Scan the QR code with Google Authenticator or enter the key manually. Then verify with a code to complete setup."
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                message = "Failed to initiate 2FA setup",
+                error = ex.Message
+            });
+        }
+    }
+
+    /**
+     * <summary>
      *     Enable two-factor authentication
      * </summary>
      * <param name="resource">The verification resource containing username and code</param>
@@ -273,7 +355,7 @@ public class AuthenticationController(
      * <summary>
      *     Disable two-factor authentication
      * </summary>
-     * <param name="username">The username</param>
+     * <param name="request">The request containing username</param>
      * <returns>Success message</returns>
      */
     [HttpPost("disable-2fa")]
@@ -283,11 +365,11 @@ public class AuthenticationController(
         Description = "Disable two-factor authentication from user settings. The secret is kept so user can re-enable easily.",
         OperationId = "DisableTwoFactor")]
     [SwaggerResponse(StatusCodes.Status200OK, "2FA was disabled successfully")]
-    public async Task<IActionResult> DisableTwoFactor([FromBody] string username)
+    public async Task<IActionResult> DisableTwoFactor([FromBody] UsernameRequest request)
     {
         try
         {
-            var command = new DisableTwoFactorCommand(username);
+            var command = new DisableTwoFactorCommand(request.Username);
             await userCommandService.Handle(command);
 
             return Ok(new { message = "Two-factor authentication disabled successfully" });

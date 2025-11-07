@@ -145,6 +145,7 @@ builder.Services.AddScoped<IUserQueryService, UserQueryService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IHashingService, HashingService>();
 builder.Services.AddScoped<ITwoFactorService, OsitoPolarPlatform.API.IAM.Infrastructure.Security.TwoFactorService>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 builder.Services.AddScoped<IIamContextFacade, IamContextFacade>();
 
 
@@ -185,11 +186,18 @@ builder.Services.Configure<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infra
     builder.Configuration.GetSection("PaymentProviders:Stripe"));
 builder.Services.Configure<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Izipay.IzipayConfiguration>(
     builder.Configuration.GetSection("PaymentProviders:Izipay"));
+builder.Services.Configure<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Culqi.CulqiConfiguration>(
+    builder.Configuration.GetSection("PaymentProviders:Culqi"));
 
 // Register payment providers
 builder.Services.AddHttpClient<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Izipay.IzipayPaymentProvider>();
+builder.Services.AddHttpClient<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Culqi.CulqiPaymentProvider>();
 builder.Services.AddScoped<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Stripe.StripePaymentProvider>();
 builder.Services.AddScoped<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Izipay.IzipayPaymentProvider>();
+builder.Services.AddScoped<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Culqi.CulqiPaymentProvider>();
+
+// Register default payment provider (IPaymentProvider -> StripePaymentProvider)
+builder.Services.AddScoped<IPaymentProvider, OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Stripe.StripePaymentProvider>();
 
 // Notifications Bounded Context
 // MailerSend Configuration
