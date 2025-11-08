@@ -40,4 +40,37 @@ public class EquipmentRepository(AppDbContext context) : BaseRepository<Equipmen
         return await Context.Set<Equipment>()
             .AnyAsync(e => e.Code == code);
     }
+
+    // ========== RENTAL EQUIPMENT QUERIES ==========
+
+    public async Task<IEnumerable<Equipment>> FindAvailableForRentAsync()
+    {
+        var now = DateTimeOffset.UtcNow;
+        return await Context.Set<Equipment>()
+            .Where(e => e.RentalInfo != null &&
+                        e.RentalInfo.StartDate <= now &&
+                        e.RentalInfo.EndDate >= now &&
+                        e.OwnerType == "Provider") // Not yet rented by an owner
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Equipment>> FindAvailableForRentByTypeAsync(string type)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return await Context.Set<Equipment>()
+            .Where(e => e.RentalInfo != null &&
+                        e.RentalInfo.StartDate <= now &&
+                        e.RentalInfo.EndDate >= now &&
+                        e.OwnerType == "Provider" &&
+                        e.Type.ToString().ToLower() == type.ToLower())
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Equipment>> FindRentalByProviderIdAsync(int providerId)
+    {
+        return await Context.Set<Equipment>()
+            .Where(e => e.RentalInfo != null &&
+                        e.RentalInfo.ProviderId == providerId)
+            .ToListAsync();
+    }
 }
