@@ -13,4 +13,8 @@ public interface IEquipmentQueryService
     Task<IEnumerable<Equipment>> Handle(GetEquipmentsByOwnerIdQuery query);
     Task<IEnumerable<Equipment>> Handle(GetEquipmentsByTypeQuery query);
     Task<IEnumerable<Equipment>> Handle(GetEquipmentsByStatusQuery query);
+
+    // Rental Equipment queries
+    Task<IEnumerable<Equipment>> Handle(GetAvailableRentalEquipmentQuery query);
+    Task<Equipment?> Handle(GetRentalEquipmentByIdQuery query);
 }

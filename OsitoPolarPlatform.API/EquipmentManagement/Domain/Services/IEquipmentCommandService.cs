@@ -13,4 +13,8 @@ public interface IEquipmentCommandService
     Task<Equipment?> Handle(UpdateEquipmentPowerStateCommand command);
     Task<Equipment?> Handle(UpdateEquipmentLocationCommand command);
     Task<bool> Handle(DeleteEquipmentCommand command);
+
+    // Rental Equipment commands
+    Task<Equipment?> Handle(PublishEquipmentForRentCommand command);
+    Task<Equipment?> Handle(UnpublishEquipmentFromRentCommand command);
 }
