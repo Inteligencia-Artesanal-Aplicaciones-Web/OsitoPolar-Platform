@@ -135,9 +135,32 @@ public class ServiceRequestCommandService(
         if (serviceRequest == null) return null;
 
         serviceRequest.Cancel();
-        serviceRequestRepository.Update(serviceRequest); 
+        serviceRequestRepository.Update(serviceRequest);
         await unitOfWork.CompleteAsync();
 
         return serviceRequest;
+    }
+
+    /// <summary>
+    /// Provider accepts a service request from the marketplace (Uber-style)
+    /// </summary>
+    public async Task<ServiceRequest?> Handle(AcceptServiceRequestCommand command)
+    {
+        var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId);
+        if (serviceRequest == null)
+            return null;
+
+        try
+        {
+            serviceRequest.AcceptByProvider(command.ProviderId);
+            serviceRequestRepository.Update(serviceRequest);
+            await unitOfWork.CompleteAsync();
+            return serviceRequest;
+        }
+        catch (InvalidOperationException)
+        {
+            // Service request already accepted by another provider
+            return null;
+        }
     }
 }

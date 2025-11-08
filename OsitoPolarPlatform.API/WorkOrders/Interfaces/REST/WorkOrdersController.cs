@@ -5,18 +5,43 @@ using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 using OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Transform;
 using Swashbuckle.AspNetCore.Annotations;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands; 
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
+using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
+using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
 
 namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST;
 
+[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
 [SwaggerTag("Available Work Order Endpoints")]
 public class WorkOrdersController(
     IWorkOrderCommandService workOrderCommandService,
-    IWorkOrderQueryService workOrderQueryService) : ControllerBase
+    IWorkOrderQueryService workOrderQueryService,
+    IOwnerRepository ownerRepository,
+    IEquipmentRepository equipmentRepository) : ControllerBase
 {
+    /// <summary>
+    /// Helper method to get the authenticated owner profile
+    /// </summary>
+    /// <returns>The owner profile or error result</returns>
+    private async Task<(ActionResult? error, Profiles.Domain.Model.Aggregates.Owner? owner)> GetAuthenticatedOwner()
+    {
+        var user = (User?)HttpContext.Items["User"];
+        if (user == null)
+            return (Unauthorized(new { message = "User not authenticated" }), null);
+
+        var ownerProfile = await ownerRepository.FindByUserIdAsync(user.Id);
+        if (ownerProfile == null)
+            return (StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "User is not an owner. Only owners can manage work orders." }), null);
+
+        return (null, ownerProfile);
+    }
+
     /// <summary>
     /// Creates a new Work Order. Can be created manually or from a Service Request.
     /// </summary>
@@ -42,20 +67,33 @@ public class WorkOrdersController(
     }
 
     /// <summary>
-    /// Gets all Work Orders.
+    /// Gets all Work Orders for the authenticated owner's equipment.
     /// </summary>
-    /// <returns>A list of Work Order resources.</returns>
+    /// <returns>A list of Work Order resources for the authenticated owner's equipment only.</returns>
     [HttpGet]
     [SwaggerOperation(
         Summary = "Get All Work Orders",
-        Description = "Returns a list of all work orders in the system.",
+        Description = "Returns a list of all work orders for the authenticated owner's equipment only.",
         OperationId = "GetAllWorkOrders")]
     [SwaggerResponse(StatusCodes.Status200OK, "List of work orders", typeof(IEnumerable<WorkOrderResource>))]
+    [SwaggerResponse(StatusCodes.Status401Unauthorized, "User not authenticated")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "User is not an owner")]
     public async Task<IActionResult> GetAllWorkOrders()
     {
+        // Get authenticated owner
+        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        if (error != null) return error;
+
+        // Get all equipment owned by this owner
+        var ownerEquipment = await equipmentRepository.FindByOwnerIdAsync(ownerProfile!.Id);
+        var equipmentIds = ownerEquipment.Select(e => e.Id).ToHashSet();
+
+        // Get all work orders and filter by owner's equipment
         var getAllWorkOrdersQuery = new GetAllWorkOrdersQuery();
-        var workOrders = await workOrderQueryService.Handle(getAllWorkOrdersQuery);
-        var resources = workOrders.Select(WorkOrderResourceFromEntityAssembler.ToResourceFromEntity).ToList();
+        var allWorkOrders = await workOrderQueryService.Handle(getAllWorkOrdersQuery);
+        var ownerWorkOrders = allWorkOrders.Where(wo => equipmentIds.Contains(wo.EquipmentId));
+
+        var resources = ownerWorkOrders.Select(WorkOrderResourceFromEntityAssembler.ToResourceFromEntity).ToList();
         return Ok(resources);
     }
 
@@ -67,18 +105,30 @@ public class WorkOrdersController(
     [HttpGet("{workOrderId:int}")]
     [SwaggerOperation(
         Summary = "Get Work Order by Id",
-        Description = "Returns a work order by its unique identifier.",
+        Description = "Returns a work order by its unique identifier if it belongs to the authenticated owner.",
         OperationId = "GetWorkOrderById")]
     [SwaggerResponse(StatusCodes.Status200OK, "Work Order found", typeof(WorkOrderResource))]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Work Order not found")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Work order does not belong to the authenticated owner")]
     public async Task<IActionResult> GetWorkOrderById(int workOrderId)
     {
+        // Get authenticated owner
+        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        if (error != null) return error;
+
         var getWorkOrderByIdQuery = new GetWorkOrderByIdQuery(workOrderId);
         var workOrder = await workOrderQueryService.Handle(getWorkOrderByIdQuery);
         if (workOrder is null)
         {
             return NotFound();
         }
+
+        // Verify ownership via equipment
+        var equipment = await equipmentRepository.FindByIdAsync(workOrder.EquipmentId);
+        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "You don't have permission to view this work order" });
+
         var resource = WorkOrderResourceFromEntityAssembler.ToResourceFromEntity(workOrder);
         return Ok(resource);
     }
@@ -92,20 +142,35 @@ public class WorkOrdersController(
     [HttpPut("{workOrderId:int}/status")]
     [SwaggerOperation(
         Summary = "Update Work Order Status",
-        Description = "Updates the status of a work order. This will also reflect the status in the associated Service Request.",
+        Description = "Updates the status of a work order. This will also reflect the status in the associated Service Request. Requires ownership of the equipment.",
         OperationId = "UpdateWorkOrderStatus")]
     [SwaggerResponse(StatusCodes.Status200OK, "Work Order status updated successfully", typeof(WorkOrderResource))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid status or status transition")]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Work Order not found")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Work order does not belong to the authenticated owner")]
     public async Task<IActionResult> UpdateWorkOrderStatus(int workOrderId, [FromBody] UpdateWorkOrderStatusResource resource)
     {
-        var command = UpdateWorkOrderStatusCommandFromResourceAssembler.ToCommandFromResource(workOrderId, resource);
-        var workOrder = await workOrderCommandService.Handle(command);
+        // Get authenticated owner
+        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        if (error != null) return error;
+
+        // Verify ownership
+        var workOrder = await workOrderQueryService.Handle(new GetWorkOrderByIdQuery(workOrderId));
         if (workOrder == null)
+            return NotFound();
+
+        var equipment = await equipmentRepository.FindByIdAsync(workOrder.EquipmentId);
+        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "You don't have permission to modify this work order" });
+
+        var command = UpdateWorkOrderStatusCommandFromResourceAssembler.ToCommandFromResource(workOrderId, resource);
+        var updatedWorkOrder = await workOrderCommandService.Handle(command);
+        if (updatedWorkOrder == null)
         {
             return NotFound();
         }
-        var updatedResource = WorkOrderResourceFromEntityAssembler.ToResourceFromEntity(workOrder);
+        var updatedResource = WorkOrderResourceFromEntityAssembler.ToResourceFromEntity(updatedWorkOrder);
         return Ok(updatedResource);
     }
     
@@ -118,13 +183,28 @@ public class WorkOrdersController(
     [HttpPut("{workOrderId:int}/resolution")]
     [SwaggerOperation(
         Summary = "Add Work Order Resolution Details",
-        Description = "Adds resolution details and marks the work order as resolved.",
+        Description = "Adds resolution details and marks the work order as resolved. Requires ownership of the equipment.",
         OperationId = "AddWorkOrderResolutionDetails")]
     [SwaggerResponse(StatusCodes.Status200OK, "Resolution details added", typeof(WorkOrderResource))]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Work Order not found")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Work order does not belong to the authenticated owner")]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid input or failed to add resolution")]
     public async Task<IActionResult> AddWorkOrderResolutionDetails(int workOrderId, [FromBody] AddWorkOrderResolutionDetailsCommand resource)
     {
+        // Get authenticated owner
+        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        if (error != null) return error;
+
+        // Verify ownership
+        var workOrder = await workOrderQueryService.Handle(new GetWorkOrderByIdQuery(workOrderId));
+        if (workOrder == null)
+            return NotFound("Work Order not found.");
+
+        var equipment = await equipmentRepository.FindByIdAsync(workOrder.EquipmentId);
+        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "You don't have permission to modify this work order" });
+
         try
         {
             var command = new AddWorkOrderResolutionDetailsCommand(
@@ -133,9 +213,9 @@ public class WorkOrdersController(
                 resource.TechnicianNotes,
                 resource.Cost
             );
-            var workOrder = await workOrderCommandService.Handle(command); 
-            if (workOrder == null) return NotFound("Work Order not found.");
-            var workOrderResource = WorkOrderResourceFromEntityAssembler.ToResourceFromEntity(workOrder);
+            var updatedWorkOrder = await workOrderCommandService.Handle(command);
+            if (updatedWorkOrder == null) return NotFound("Work Order not found.");
+            var workOrderResource = WorkOrderResourceFromEntityAssembler.ToResourceFromEntity(updatedWorkOrder);
             return Ok(workOrderResource);
         }
         catch (ArgumentException ex)
