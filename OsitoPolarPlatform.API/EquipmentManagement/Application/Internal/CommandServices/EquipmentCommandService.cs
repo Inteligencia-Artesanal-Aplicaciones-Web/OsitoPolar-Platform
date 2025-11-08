@@ -75,4 +75,32 @@ public class EquipmentCommandService(
         await unitOfWork.CompleteAsync();
         return true;
     }
+
+    // ========== RENTAL EQUIPMENT COMMAND HANDLERS ==========
+
+    public async Task<Equipment?> Handle(PublishEquipmentForRentCommand command)
+    {
+        var equipment = await equipmentRepository.FindByIdAsync(command.EquipmentId);
+        if (equipment is null)
+            return null;
+
+        equipment.PublishForRent(command.StartDate, command.EndDate, command.MonthlyFee, command.ProviderId);
+        equipmentRepository.Update(equipment);
+        await unitOfWork.CompleteAsync();
+
+        return equipment;
+    }
+
+    public async Task<Equipment?> Handle(UnpublishEquipmentFromRentCommand command)
+    {
+        var equipment = await equipmentRepository.FindByIdAsync(command.EquipmentId);
+        if (equipment is null)
+            return null;
+
+        equipment.UnpublishFromRent();
+        equipmentRepository.Update(equipment);
+        await unitOfWork.CompleteAsync();
+
+        return equipment;
+    }
 }
