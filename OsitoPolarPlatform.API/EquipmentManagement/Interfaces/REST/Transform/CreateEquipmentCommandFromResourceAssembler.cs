@@ -5,10 +5,11 @@ namespace OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST.Transform;
 
 /// <summary>
 /// Assembles a CreateEquipmentCommand from a CreateEquipmentResource.
+/// OwnerId and OwnerType are injected from the authenticated owner for security.
 /// </summary>
 public static class CreateEquipmentCommandFromResourceAssembler
 {
-    public static CreateEquipmentCommand ToCommandFromResource(CreateEquipmentResource resource)
+    public static CreateEquipmentCommand ToCommandFromResource(CreateEquipmentResource resource, int ownerId, string ownerType)
     {
         return new CreateEquipmentCommand(
             resource.Name,
@@ -30,8 +31,8 @@ public static class CreateEquipmentCommandFromResourceAssembler
             resource.EnergyConsumptionCurrent,
             resource.EnergyConsumptionUnit,
             resource.EnergyConsumptionAverage,
-            resource.OwnerId,
-            resource.OwnerType,
+            ownerId,
+            ownerType,
             resource.OwnershipType,
             resource.Notes
         );

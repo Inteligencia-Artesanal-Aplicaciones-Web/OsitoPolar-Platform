@@ -2,6 +2,7 @@
 
 /// <summary>
 /// Resource for creating a new Equipment.
+/// OwnerId is automatically set from the authenticated user - do not send it from the client.
 /// </summary>
 public record CreateEquipmentResource(
     string Name,
@@ -23,8 +24,6 @@ public record CreateEquipmentResource(
     decimal EnergyConsumptionCurrent,
     string EnergyConsumptionUnit,
     decimal EnergyConsumptionAverage,
-    int OwnerId,
-    string OwnerType,
     string OwnershipType,
     string Notes
 );
