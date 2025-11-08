@@ -129,10 +129,29 @@ public partial class ServiceRequest
     {
         if (rating < 1 || rating > 5)
             throw new ArgumentOutOfRangeException(nameof(rating), "Rating must be between 1 and 5.");
-        if (Status != EServiceRequestStatus.Resolved) 
+        if (Status != EServiceRequestStatus.Resolved)
             throw new InvalidOperationException("Cannot add feedback to an unresolved service request.");
 
         CustomerFeedbackRating = rating;
-        FeedbackSubmissionDate = DateTimeOffset.UtcNow; 
+        FeedbackSubmissionDate = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// Provider accepts the service request from the marketplace (Uber-style)
+    /// Only pending requests can be accepted, and only if not already assigned
+    /// </summary>
+    public void AcceptByProvider(int providerId)
+    {
+        if (providerId <= 0)
+            throw new ArgumentException("Provider ID must be positive.", nameof(providerId));
+
+        if (Status != EServiceRequestStatus.Pending)
+            throw new InvalidOperationException("Only pending service requests can be accepted.");
+
+        if (CompanyId != 0 && CompanyId != providerId)
+            throw new InvalidOperationException("This service request is already assigned to another provider.");
+
+        CompanyId = providerId;
+        Status = EServiceRequestStatus.Accepted;
     }
 }

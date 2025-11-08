@@ -13,4 +13,20 @@ public interface IEquipmentRepository : IBaseRepository<Equipment>
     Task<IEnumerable<Equipment>> FindByStatusAsync(string status);
     Task<bool> ExistsBySerialNumberAsync(string serialNumber);
     Task<bool> ExistsByCodeAsync(string code);
+
+    // Rental Equipment queries
+    /// <summary>
+    /// Find equipment available for rent (has RentalInfo and is active)
+    /// </summary>
+    Task<IEnumerable<Equipment>> FindAvailableForRentAsync();
+
+    /// <summary>
+    /// Find available rental equipment by type
+    /// </summary>
+    Task<IEnumerable<Equipment>> FindAvailableForRentByTypeAsync(string type);
+
+    /// <summary>
+    /// Find rental equipment by provider
+    /// </summary>
+    Task<IEnumerable<Equipment>> FindRentalByProviderIdAsync(int providerId);
 }

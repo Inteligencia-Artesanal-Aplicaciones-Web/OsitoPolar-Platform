@@ -10,6 +10,7 @@ public interface IServiceRequestCommandService
     Task<ServiceRequest?> Handle(UpdateServiceRequestCommand command);
     Task<ServiceRequest?> Handle(AssignTechnicianToServiceRequestCommand command);
     Task<ServiceRequest?> Handle(AddCustomerFeedbackToServiceRequestCommand command);
-    Task<ServiceRequest?> Handle(RejectServiceRequestCommand command); 
-    Task<ServiceRequest?> Handle(CancelServiceRequestCommand command); 
+    Task<ServiceRequest?> Handle(RejectServiceRequestCommand command);
+    Task<ServiceRequest?> Handle(CancelServiceRequestCommand command);
+    Task<ServiceRequest?> Handle(AcceptServiceRequestCommand command);
 }
