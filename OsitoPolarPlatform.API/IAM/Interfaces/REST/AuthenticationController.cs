@@ -134,38 +134,6 @@ public class AuthenticationController(
 
     /**
      * <summary>
-     *     Sign up endpoint. It allows creating a new user
-     * </summary>
-     * <param name="signUpResource">The sign-up resource containing username and password.</param>
-     * <returns>A confirmation message on successful creation.</returns>
-     */
-    [HttpPost("sign-up")]
-    [AllowAnonymous]
-    [SwaggerOperation(
-        Summary = "Sign-up",
-        Description = "Sign up a new user",
-        OperationId = "SignUp")]
-    [SwaggerResponse(StatusCodes.Status200OK, "The user was created successfully")]
-    public async Task<IActionResult> SignUp([FromBody] SignUpResource signUpResource)
-    {
-        try
-        {
-            var signUpCommand = SignUpCommandFromResourceAssembler.ToCommandFromResource(signUpResource);
-            await userCommandService.Handle(signUpCommand);
-            return Ok(new { message = "User created successfully" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new
-            {
-                message = "An error occurred while creating the user.",
-                error = ex.Message
-            });
-        }
-    }
-
-    /**
-     * <summary>
      *     Register with payment endpoint - Complete registration with Stripe payment and profile creation
      * </summary>
      * <param name="request">Registration request with payment and profile information</param>
