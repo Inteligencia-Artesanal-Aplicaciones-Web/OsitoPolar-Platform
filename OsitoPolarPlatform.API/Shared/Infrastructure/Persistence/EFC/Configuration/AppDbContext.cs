@@ -11,6 +11,7 @@ using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Configurati
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Notifications.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Notifications.Domain.Model.Entities;
+using OsitoPolarPlatform.API.Analytics.Domain.Model.Entities;
 
 namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 
@@ -21,6 +22,10 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
 {
     // Notifications
     public DbSet<NotificationLog> NotificationLogs { get; set; }
+
+    // Analytics
+    public DbSet<TemperatureReading> TemperatureReadings { get; set; }
+    public DbSet<EnergyReading> EnergyReadings { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder builder)
     {

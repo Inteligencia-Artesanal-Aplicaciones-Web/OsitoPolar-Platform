@@ -150,9 +150,19 @@ public partial class EquipmentAnalytics
             };
         }
 
-        var avgChangeRate = changeRates.Average();
+        var avgChangeRate = changeRates.Any() ? changeRates.Average() : 0;
         var lastReading = recentReadings.Last();
         var duration = (decimal)(lastReading.Timestamp - sortedReadings.First().Timestamp).TotalMinutes;
+
+        Console.WriteLine($"[ANOMALY DEBUG] Readings count: {readings.Count}, Recent: {recentReadings.Count}");
+        Console.WriteLine($"[ANOMALY DEBUG] Recent readings:");
+        foreach (var r in recentReadings)
+        {
+            Console.WriteLine($"  - {r.Temperature:F1}°C at {r.Timestamp:yyyy-MM-dd HH:mm:ss}");
+        }
+        Console.WriteLine($"[ANOMALY DEBUG] Change rates: {string.Join(", ", changeRates.Select(r => $"{r:F2}°C/min"))}");
+        Console.WriteLine($"[ANOMALY DEBUG] Average change rate: {avgChangeRate:F2}°C/min (threshold: 0.5)");
+        Console.WriteLine($"[ANOMALY DEBUG] Duration: {duration:F1} minutes");
 
         // DOOR OPEN: Rapid temperature increase (>0.5°C per minute)
         if (avgChangeRate > 0.5m)
