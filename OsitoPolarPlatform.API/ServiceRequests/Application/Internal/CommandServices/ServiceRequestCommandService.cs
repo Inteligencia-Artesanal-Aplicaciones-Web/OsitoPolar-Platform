@@ -5,14 +5,36 @@ using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
+using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 
-public class ServiceRequestCommandService(
-    IServiceRequestRepository serviceRequestRepository,
-    IWorkOrderRepository workOrderRepository,
-    IUnitOfWork unitOfWork) : IServiceRequestCommandService
+public class ServiceRequestCommandService : IServiceRequestCommandService
 {
+    private readonly IServiceRequestRepository serviceRequestRepository;
+    private readonly IWorkOrderRepository workOrderRepository;
+    private readonly IUnitOfWork unitOfWork;
+    private readonly NotificationGeneratorService notificationGenerator;
+    private readonly IRenterProviderRepository providerRepository;
+    private readonly IEquipmentRepository equipmentRepository;
+
+    public ServiceRequestCommandService(
+        IServiceRequestRepository serviceRequestRepository,
+        IWorkOrderRepository workOrderRepository,
+        IUnitOfWork unitOfWork,
+        NotificationGeneratorService notificationGenerator,
+        IRenterProviderRepository providerRepository,
+        IEquipmentRepository equipmentRepository)
+    {
+        this.serviceRequestRepository = serviceRequestRepository;
+        this.workOrderRepository = workOrderRepository;
+        this.unitOfWork = unitOfWork;
+        this.notificationGenerator = notificationGenerator;
+        this.providerRepository = providerRepository;
+        this.equipmentRepository = equipmentRepository;
+    }
     public async Task<ServiceRequest?> Handle(CreateServiceRequestCommand command)
     {
         var serviceRequest = new ServiceRequest(
@@ -155,6 +177,32 @@ public class ServiceRequestCommandService(
             serviceRequest.AcceptByProvider(command.ProviderId);
             serviceRequestRepository.Update(serviceRequest);
             await unitOfWork.CompleteAsync();
+
+            // Generate notification for owner
+            try
+            {
+                var provider = await providerRepository.FindByIdAsync(command.ProviderId);
+                var equipment = await equipmentRepository.FindByIdAsync(serviceRequest.EquipmentId);
+
+                if (provider != null && equipment != null)
+                {
+                    // Get owner ID from equipment
+                    // Note: Equipment needs to have OwnerId property
+                    // For now, using ClientId from ServiceRequest as a workaround
+                    await notificationGenerator.NotifyServiceRequestAccepted(
+                        serviceRequest.ClientId,
+                        serviceRequest.Id,
+                        provider.CompanyName,
+                        serviceRequest.Title
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ServiceRequest] Error generating notification: {ex.Message}");
+                // Don't fail the request if notification fails
+            }
+
             return serviceRequest;
         }
         catch (InvalidOperationException)

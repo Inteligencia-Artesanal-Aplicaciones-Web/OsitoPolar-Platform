@@ -12,6 +12,7 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence
 using OsitoPolarPlatform.API.Notifications.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Notifications.Domain.Model.Entities;
 using OsitoPolarPlatform.API.Analytics.Domain.Model.Entities;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
 
 namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
 
@@ -26,6 +27,9 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
     // Analytics
     public DbSet<TemperatureReading> TemperatureReadings { get; set; }
     public DbSet<EnergyReading> EnergyReadings { get; set; }
+
+    // Service Payments
+    public DbSet<ServicePayment> ServicePayments { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder builder)
     {
