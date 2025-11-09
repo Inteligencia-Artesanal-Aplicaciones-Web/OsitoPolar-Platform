@@ -8,6 +8,7 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
 using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
+using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
 using Swashbuckle.AspNetCore.Annotations;
 using Stripe.Checkout;
 
@@ -27,6 +28,10 @@ public class PaymentsController : ControllerBase
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IEquipmentRepository _equipmentRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly NotificationGeneratorService _notificationGenerator;
+
+    // Platform commission percentage for rental transactions
+    private const decimal PLATFORM_FEE_PERCENTAGE = 15.0m;
 
     public PaymentsController(
         StripePaymentProvider stripeProvider,
@@ -36,7 +41,8 @@ public class PaymentsController : ControllerBase
         IRenterProviderRepository providerRepository,
         ISubscriptionRepository subscriptionRepository,
         IEquipmentRepository equipmentRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        NotificationGeneratorService notificationGenerator)
     {
         _stripeProvider = stripeProvider;
         _culqiProvider = culqiProvider;
@@ -46,6 +52,7 @@ public class PaymentsController : ControllerBase
         _subscriptionRepository = subscriptionRepository;
         _equipmentRepository = equipmentRepository;
         _unitOfWork = unitOfWork;
+        _notificationGenerator = notificationGenerator;
     }
 
     /// <summary>
@@ -356,34 +363,75 @@ public class PaymentsController : ControllerBase
 
             Console.WriteLine($"[CompleteRental] Equipment: {equipment.Name}");
 
-            // 4. Assign rental to owner
-            equipment.AssignRental(ownerId);
+            // 4. Calculate payment breakdown
+            var totalAmount = monthlyFee * months;
+            var platformFee = Math.Round(totalAmount * (PLATFORM_FEE_PERCENTAGE / 100), 2);
+            var providerAmount = totalAmount - platformFee;
+
+            Console.WriteLine($"[CompleteRental] Payment breakdown - Total: ${totalAmount}, Platform: ${platformFee}, Provider gets: ${providerAmount}");
+
+            // 5. Update provider balance
+            var provider = await _providerRepository.FindByIdAsync(providerId);
+            if (provider != null)
+            {
+                provider.RecordServiceRevenue(providerAmount, $"Rental revenue for equipment {equipment.Name}");
+                _providerRepository.Update(provider);
+                Console.WriteLine($"[CompleteRental] Provider balance updated: ${provider.Balance}");
+            }
+
+            // 6. Transfer equipment ownership to the renter (Owner)
+            // This transfers the equipment from Provider to Owner after successful payment
+            equipment.TransferOwnership(ownerId, "Owner");
             _equipmentRepository.Update(equipment);
+
+            Console.WriteLine($"[CompleteRental] Equipment ownership transferred to owner {ownerId}");
+
+            // 7. Save all changes
             await _unitOfWork.CompleteAsync();
 
-            Console.WriteLine($"[CompleteRental] Equipment assigned to owner successfully");
-
-            // 5. Get owner details for response
+            // 8. Get owner details for response
             var owner = await _ownerRepository.FindByIdAsync(ownerId);
+
+            // 9. Send notifications
+            if (owner != null && provider != null)
+            {
+                // Notify owner about successful purchase
+                await _notificationGenerator.NotifyEquipmentAnomaly(
+                    ownerId,
+                    equipmentId,
+                    equipment.Name,
+                    "rental_completed",
+                    $"You have successfully acquired {equipment.Name}. The equipment is now yours!");
+
+                // Notify provider about payment received
+                await _notificationGenerator.NotifyPaymentReceived(
+                    provider.UserId,
+                    0, // No service request for rental
+                    providerAmount,
+                    $"Rental payment for {equipment.Name}");
+
+                Console.WriteLine($"[CompleteRental] Notifications sent to both parties");
+            }
 
             return Ok(new
             {
                 success = true,
-                message = "Equipment rental completed successfully",
-                rental = new
+                message = "Equipment ownership transferred successfully",
+                purchase = new
                 {
                     equipmentId,
                     equipmentName = equipment.Name,
                     equipmentType = equipment.Type.ToString(),
-                    ownerId,
-                    ownerName = owner != null ? $"{owner.Name.FirstName} {owner.Name.LastName}" : "Unknown",
-                    providerId,
-                    months,
-                    monthlyFee,
-                    totalPaid = session.AmountTotal / 100m,
+                    newOwnerId = ownerId,
+                    newOwnerName = owner != null ? $"{owner.Name.FirstName} {owner.Name.LastName}" : "Unknown",
+                    previousOwnerId = providerId,
+                    previousOwnerName = provider?.CompanyName ?? "Unknown",
+                    totalAmount,
+                    platformFee,
+                    providerReceived = providerAmount,
+                    platformFeePercentage = PLATFORM_FEE_PERCENTAGE,
                     transactionId = session.PaymentIntentId,
-                    rentalStartDate = equipment.RentalInfo?.StartDate,
-                    rentalEndDate = equipment.RentalInfo?.EndDate
+                    transferredAt = DateTime.UtcNow
                 }
             });
         }

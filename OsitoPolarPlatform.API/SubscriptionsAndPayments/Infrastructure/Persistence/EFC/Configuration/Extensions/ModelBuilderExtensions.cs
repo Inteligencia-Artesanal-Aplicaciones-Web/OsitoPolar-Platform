@@ -98,5 +98,67 @@ public static class ModelBuilderExtensions
                 .HasColumnName("updated_at")
                 .HasDefaultValueSql("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
         });
+
+        // ServicePayment configuration
+        builder.Entity<ServicePayment>(entity =>
+        {
+            entity.HasKey(sp => sp.Id);
+            entity.Property(sp => sp.Id).HasColumnName("id").IsRequired().ValueGeneratedOnAdd();
+            entity.ToTable("service_payments");
+
+            entity.Property(sp => sp.WorkOrderId).HasColumnName("work_order_id").IsRequired();
+            entity.Property(sp => sp.ServiceRequestId).HasColumnName("service_request_id").IsRequired();
+            entity.Property(sp => sp.OwnerId).HasColumnName("owner_id").IsRequired();
+            entity.Property(sp => sp.ProviderId).HasColumnName("provider_id").IsRequired();
+
+            entity.Property(sp => sp.TotalAmount)
+                .HasColumnName("total_amount")
+                .HasColumnType("decimal(10,2)")
+                .IsRequired();
+
+            entity.Property(sp => sp.PlatformFee)
+                .HasColumnName("platform_fee")
+                .HasColumnType("decimal(10,2)")
+                .IsRequired();
+
+            entity.Property(sp => sp.ProviderAmount)
+                .HasColumnName("provider_amount")
+                .HasColumnType("decimal(10,2)")
+                .IsRequired();
+
+            entity.Property(sp => sp.StripePaymentIntentId)
+                .HasColumnName("stripe_payment_intent_id")
+                .HasMaxLength(255)
+                .IsRequired(false);
+
+            entity.Property(sp => sp.StripeTransactionId)
+                .HasColumnName("stripe_transaction_id")
+                .HasMaxLength(255)
+                .IsRequired(false);
+
+            entity.Property(sp => sp.Status)
+                .HasColumnName("status")
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(sp => sp.Description)
+                .HasColumnName("description")
+                .HasMaxLength(500)
+                .IsRequired();
+
+            entity.Property(sp => sp.CreatedAt)
+                .HasColumnName("created_at")
+                .IsRequired();
+
+            entity.Property(sp => sp.CompletedAt)
+                .HasColumnName("completed_at")
+                .IsRequired(false);
+
+            // Indexes for efficient querying
+            entity.HasIndex(sp => sp.WorkOrderId).HasDatabaseName("idx_service_payments_work_order");
+            entity.HasIndex(sp => sp.OwnerId).HasDatabaseName("idx_service_payments_owner");
+            entity.HasIndex(sp => sp.ProviderId).HasDatabaseName("idx_service_payments_provider");
+            entity.HasIndex(sp => sp.Status).HasDatabaseName("idx_service_payments_status");
+        });
     }
 }

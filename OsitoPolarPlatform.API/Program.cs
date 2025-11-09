@@ -180,6 +180,7 @@ builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
+builder.Services.AddScoped<IServicePaymentRepository, ServicePaymentRepository>();
 
 // Payment Providers Configuration
 builder.Services.Configure<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Stripe.StripeConfiguration>(
@@ -215,6 +216,15 @@ builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 // Email Command Service
 builder.Services.AddScoped<IEmailCommandService, EmailCommandService>();
+
+// In-App Notifications
+builder.Services.AddScoped<OsitoPolarPlatform.API.Notifications.Domain.Repositories.IInAppNotificationRepository,
+    OsitoPolarPlatform.API.Notifications.Infrastructure.Persistence.EFC.Repositories.InAppNotificationRepository>();
+builder.Services.AddScoped<OsitoPolarPlatform.API.Notifications.Domain.Services.IInAppNotificationCommandService,
+    OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices.InAppNotificationCommandService>();
+builder.Services.AddScoped<OsitoPolarPlatform.API.Notifications.Domain.Services.IInAppNotificationQueryService,
+    OsitoPolarPlatform.API.Notifications.Application.Internal.QueryServices.InAppNotificationQueryService>();
+builder.Services.AddScoped<OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices.NotificationGeneratorService>();
 
 
 
