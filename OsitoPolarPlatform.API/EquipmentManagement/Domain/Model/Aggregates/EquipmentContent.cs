@@ -165,4 +165,25 @@ public partial class Equipment
         RentalInfo = null;
         OwnershipType = EOwnershipType.Owned;
     }
+
+    /// <summary>
+    /// Transfer equipment ownership permanently after successful payment
+    /// This is used for rent-to-own or direct purchase scenarios
+    /// </summary>
+    public void TransferOwnership(int newOwnerId, string newOwnerType)
+    {
+        if (string.IsNullOrWhiteSpace(newOwnerType))
+            throw new ArgumentException("Owner type cannot be empty");
+
+        if (newOwnerType != "Owner" && newOwnerType != "Provider")
+            throw new ArgumentException("Owner type must be either 'Owner' or 'Provider'");
+
+        // Transfer ownership
+        OwnerId = newOwnerId;
+        OwnerType = newOwnerType;
+
+        // Clear rental information and mark as owned
+        RentalInfo = null;
+        OwnershipType = EOwnershipType.Owned;
+    }
 }
