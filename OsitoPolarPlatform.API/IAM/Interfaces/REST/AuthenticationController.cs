@@ -1,4 +1,6 @@
 using System.Net.Mime;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using OsitoPolarPlatform.API.IAM.Application.Internal.OutboundServices;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Commands;
@@ -7,7 +9,16 @@ using OsitoPolarPlatform.API.IAM.Domain.Services;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Transform;
+using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Notifications.Domain.Model.Commands;
+using OsitoPolarPlatform.API.Notifications.Domain.Model.ValueObjects;
+using OsitoPolarPlatform.API.Profiles.Domain.Model.Aggregates;
+using OsitoPolarPlatform.API.Profiles.Domain.Model.Commands;
+using OsitoPolarPlatform.API.Profiles.Domain.Model.ValueObjects;
 using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Domain.Services;
+using OsitoPolarPlatform.API.Shared.Domain.Repositories;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
@@ -23,8 +34,41 @@ public class AuthenticationController(
     ITwoFactorService twoFactorService,
     IUserRepository userRepository,
     IOwnerRepository ownerRepository,
-    IRenterProviderRepository renterProviderRepository) : ControllerBase
+    IRenterProviderRepository renterProviderRepository,
+    ISubscriptionRepository subscriptionRepository,
+    IUnitOfWork unitOfWork,
+    IEmailCommandService emailCommandService) : ControllerBase
 {
+    private static string GenerateSecurePassword()
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+        var password = new char[16];
+        var randomBytes = new byte[16];
+
+        using (var rng = RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(randomBytes);
+        }
+
+        for (int i = 0; i < 16; i++)
+        {
+            password[i] = chars[randomBytes[i] % chars.Length];
+        }
+
+        return new string(password);
+    }
+
+    private static string FormatSecretForDisplay(string secret)
+    {
+        var formatted = new List<string>();
+        for (var i = 0; i < secret.Length; i += 4)
+        {
+            var remaining = secret.Length - i;
+            var length = Math.Min(4, remaining);
+            formatted.Add(secret.Substring(i, length));
+        }
+        return string.Join(" ", formatted);
+    }
     /**
      * <summary>
      *     Sign in endpoint. It allows authenticating a user
@@ -54,14 +98,29 @@ public class AuthenticationController(
                 // First login - needs 2FA setup (secret was just generated)
                 if (!userFor2FA.TwoFactorEnabled && !string.IsNullOrEmpty(userFor2FA.TwoFactorSecret))
                 {
-                    var twoFactorSetup = twoFactorService.GenerateTwoFactorSecret(userFor2FA.Username);
+                    // Use the existing secret from the database to generate QR code
+                    var secret = userFor2FA.TwoFactorSecret;
+                    var label = userFor2FA.Username;
+                    var issuer = "OsitoPolar";
+                    var otpUrl = $"otpauth://totp/{Uri.EscapeDataString(issuer)}:{Uri.EscapeDataString(label)}?secret={secret}&issuer={Uri.EscapeDataString(issuer)}";
+
+                    // Generate QR code from the existing secret
+                    using var qrGenerator = new QRCoder.QRCodeGenerator();
+                    var qrCodeData = qrGenerator.CreateQrCode(otpUrl, QRCoder.QRCodeGenerator.ECCLevel.Q);
+                    using var qrCode = new QRCoder.PngByteQRCode(qrCodeData);
+                    var qrCodeBytes = qrCode.GetGraphic(20);
+                    var qrCodeBase64 = Convert.ToBase64String(qrCodeBytes);
+                    var qrCodeDataUrl = $"data:image/png;base64,{qrCodeBase64}";
+
+                    // Format secret for manual entry
+                    var manualEntryKey = FormatSecretForDisplay(secret);
 
                     return Ok(new
                     {
                         requiresTwoFactorSetup = true,
                         username = userFor2FA.Username,
-                        qrCodeDataUrl = twoFactorSetup.QrCodeDataUrl,
-                        manualEntryKey = twoFactorSetup.ManualEntryKey,
+                        qrCodeDataUrl = qrCodeDataUrl,
+                        manualEntryKey = manualEntryKey,
                         message = "First login detected. Please scan the QR code with Google Authenticator and enter the 6-digit code."
                     });
                 }
@@ -134,7 +193,231 @@ public class AuthenticationController(
 
     /**
      * <summary>
-     *     Register with payment endpoint - Complete registration with Stripe payment and profile creation
+     *     Create Stripe checkout session for registration (Step 1: Payment)
+     * </summary>
+     * <param name="request">Request containing planId and userType</param>
+     * <returns>Stripe checkout URL</returns>
+     */
+    [HttpPost("create-registration-checkout")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Create registration checkout session",
+        Description = "Step 1: Creates Stripe checkout session for new user registration. User pays first, then completes registration form.",
+        OperationId = "CreateRegistrationCheckout")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Checkout session created successfully")]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid request")]
+    public async Task<IActionResult> CreateRegistrationCheckout([FromBody] CreateRegistrationCheckoutResource request)
+    {
+        try
+        {
+            // Get plan details
+            var plan = await subscriptionRepository.FindByIdAsync(request.PlanId);
+            if (plan == null)
+                return BadRequest(new { message = "Invalid plan ID" });
+
+            // Validate userType matches plan type
+            var isOwnerPlan = request.PlanId >= 1 && request.PlanId <= 3;
+            var isProviderPlan = request.PlanId >= 4 && request.PlanId <= 6;
+
+            if (request.UserType == "Owner" && !isOwnerPlan)
+                return BadRequest(new { message = "Owner must select an Owner plan (1-3)" });
+
+            if (request.UserType == "Provider" && !isProviderPlan)
+                return BadRequest(new { message = "Provider must select a Provider plan (4-6)" });
+
+            // Create Stripe checkout session
+            var options = new Stripe.Checkout.SessionCreateOptions
+            {
+                PaymentMethodTypes = new List<string> { "card" },
+                LineItems = new List<Stripe.Checkout.SessionLineItemOptions>
+                {
+                    new Stripe.Checkout.SessionLineItemOptions
+                    {
+                        PriceData = new Stripe.Checkout.SessionLineItemPriceDataOptions
+                        {
+                            Currency = "usd",
+                            ProductData = new Stripe.Checkout.SessionLineItemPriceDataProductDataOptions
+                            {
+                                Name = plan.PlanName,
+                                Description = $"OsitoPolar {request.UserType} Plan - {plan.PlanName}"
+                            },
+                            UnitAmount = (long)(plan.Price.Amount * 100), // Convert to cents
+                        },
+                        Quantity = 1
+                    }
+                },
+                Mode = "payment",
+                SuccessUrl = request.SuccessUrl + "?session_id={CHECKOUT_SESSION_ID}",
+                CancelUrl = request.CancelUrl,
+                Metadata = new Dictionary<string, string>
+                {
+                    { "paymentType", "registration" },
+                    { "planId", request.PlanId.ToString() },
+                    { "userType", request.UserType }
+                }
+            };
+
+            var service = new Stripe.Checkout.SessionService();
+            var session = await service.CreateAsync(options);
+
+            return Ok(new
+            {
+                sessionId = session.Id,
+                checkoutUrl = session.Url,
+                planName = plan.PlanName,
+                amount = plan.Price.Amount
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = "Failed to create checkout session", error = ex.Message });
+        }
+    }
+
+    /**
+     * <summary>
+     *     Complete registration after successful payment (Step 2: Create Account)
+     * </summary>
+     * <param name="request">Registration data with Stripe session ID</param>
+     * <returns>Registration response with credentials</returns>
+     */
+    [HttpPost("complete-registration")]
+    [AllowAnonymous]
+    [SwaggerOperation(
+        Summary = "Complete registration after payment",
+        Description = "Step 2: Completes user registration after successful Stripe payment. Validates payment and creates user account with profile.",
+        OperationId = "CompleteRegistration")]
+    [SwaggerResponse(StatusCodes.Status200OK, "Registration completed successfully")]
+    [SwaggerResponse(StatusCodes.Status400BadRequest, "Registration failed")]
+    public async Task<IActionResult> CompleteRegistration([FromBody] CompleteRegistrationResource request)
+    {
+        try
+        {
+            // Verify Stripe session
+            var sessionService = new Stripe.Checkout.SessionService();
+            var session = await sessionService.GetAsync(request.SessionId);
+
+            if (session == null)
+                return BadRequest(new { message = "Invalid session ID" });
+
+            if (session.PaymentStatus != "paid")
+                return BadRequest(new { message = "Payment not completed. Please complete payment first." });
+
+            if (session.Metadata["paymentType"] != "registration")
+                return BadRequest(new { message = "Invalid session type" });
+
+            // Check if session already used
+            var existingUser = await userRepository.FindByUsernameAsync(request.Username);
+            if (existingUser != null)
+                return BadRequest(new { message = "Username already exists" });
+
+            // Get plan and userType from session metadata
+            var planId = int.Parse(session.Metadata["planId"]);
+            var userType = session.Metadata["userType"];
+
+            // Get subscription plan to retrieve maxUnits/maxClients
+            var plan = await subscriptionRepository.FindByIdAsync(planId);
+            if (plan == null)
+                return BadRequest(new { message = "Invalid plan ID from session" });
+
+            // Generate secure password
+            var generatedPassword = GenerateSecurePassword();
+
+            // Create user
+            var signUpCommand = new SignUpCommand(request.Username, generatedPassword);
+            await userCommandService.Handle(signUpCommand);
+
+            var user = await userRepository.FindByUsernameAsync(request.Username);
+            if (user == null)
+                return BadRequest(new { message = "Failed to create user" });
+
+            // Create profile based on userType
+            if (userType == "Owner")
+            {
+                var owner = new Owner(
+                    userId: user.Id,
+                    firstName: request.FirstName,
+                    lastName: request.LastName,
+                    email: request.Email,
+                    street: request.Street,
+                    number: request.Number,
+                    city: request.City,
+                    postalCode: request.PostalCode,
+                    country: request.Country,
+                    planId: planId,
+                    maxUnits: plan.MaxEquipment ?? 10 // Use plan's MaxEquipment or default to 10
+                );
+                await ownerRepository.AddAsync(owner);
+            }
+            else
+            {
+                var provider = new RenterProvider(
+                    userId: user.Id,
+                    companyName: request.CompanyName ?? "Company",
+                    contactFirstName: request.FirstName,
+                    contactLastName: request.LastName,
+                    email: request.Email,
+                    street: request.Street,
+                    number: request.Number,
+                    city: request.City,
+                    postalCode: request.PostalCode,
+                    country: request.Country,
+                    planId: planId,
+                    maxClients: plan.MaxClients ?? 50, // Use plan's MaxClients or default to 50
+                    taxId: request.TaxId
+                );
+                await renterProviderRepository.AddAsync(provider);
+            }
+
+            // Save all changes to database
+            await unitOfWork.CompleteAsync();
+
+            // Send welcome email with credentials
+            try
+            {
+                var loginUrl = $"{Request.Scheme}://{Request.Host}/sign-in";
+
+                var emailCommand = new SendEmailCommand
+                {
+                    To = request.Email,
+                    ToName = $"{request.FirstName} {request.LastName}",
+                    Template = EmailTemplate.CredentialDelivery,
+                    TemplateData = new Dictionary<string, object>
+                    {
+                        { "email", request.Email },
+                        { "temporaryPassword", generatedPassword },
+                        { "loginUrl", loginUrl }
+                    }
+                };
+
+                await emailCommandService.SendTemplatedEmailAsync(emailCommand);
+            }
+            catch (Exception emailEx)
+            {
+                // Log email error but don't fail the registration
+                Console.WriteLine($"Warning: Failed to send welcome email: {emailEx.Message}");
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Registration completed successfully",
+                userId = user.Id,
+                username = request.Username,
+                generatedPassword,
+                userType,
+                email = request.Email
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = "Registration failed", error = ex.Message });
+        }
+    }
+
+    /**
+     * <summary>
+     *     Register with payment endpoint - DEPRECATED (Use create-registration-checkout + complete-registration instead)
      * </summary>
      * <param name="request">Registration request with payment and profile information</param>
      * <returns>Registration response with generated credentials</returns>
@@ -142,8 +425,8 @@ public class AuthenticationController(
     [HttpPost("register")]
     [AllowAnonymous]
     [SwaggerOperation(
-        Summary = "Register with payment",
-        Description = "Complete user registration with Stripe payment and automatic Owner/Provider profile creation. Payment is processed synchronously and credentials are emailed upon success.",
+        Summary = "Register with payment (DEPRECATED)",
+        Description = "DEPRECATED: Use create-registration-checkout + complete-registration flow instead. This synchronous payment method is no longer recommended.",
         OperationId = "RegisterWithPayment")]
     [SwaggerResponse(StatusCodes.Status200OK, "Registration completed successfully", typeof(RegisterWithPaymentResponse))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Registration failed")]
