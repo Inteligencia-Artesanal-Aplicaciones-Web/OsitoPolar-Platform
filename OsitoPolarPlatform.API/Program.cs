@@ -295,6 +295,9 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<AppDbContext>();
     context.Database.EnsureCreated();
+
+    // Seed initial data (subscription plans, etc.)
+    await DatabaseSeeder.SeedDatabase(context);
 }
 
 // Configure the HTTP request pipeline.
