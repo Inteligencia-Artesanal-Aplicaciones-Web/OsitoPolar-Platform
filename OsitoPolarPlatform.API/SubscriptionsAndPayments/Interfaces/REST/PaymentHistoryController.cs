@@ -19,6 +19,8 @@ namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.REST;
 public class PaymentHistoryController : ControllerBase
 {
     private readonly IServicePaymentRepository _servicePaymentRepository;
+    private readonly IPaymentRepository _paymentRepository;
+    private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IOwnerRepository _ownerRepository;
     private readonly IRenterProviderRepository _providerRepository;
     private readonly IWorkOrderRepository _workOrderRepository;
@@ -26,12 +28,16 @@ public class PaymentHistoryController : ControllerBase
 
     public PaymentHistoryController(
         IServicePaymentRepository servicePaymentRepository,
+        IPaymentRepository paymentRepository,
+        ISubscriptionRepository subscriptionRepository,
         IOwnerRepository ownerRepository,
         IRenterProviderRepository providerRepository,
         IWorkOrderRepository workOrderRepository,
         ILogger<PaymentHistoryController> logger)
     {
         _servicePaymentRepository = servicePaymentRepository;
+        _paymentRepository = paymentRepository;
+        _subscriptionRepository = subscriptionRepository;
         _ownerRepository = ownerRepository;
         _providerRepository = providerRepository;
         _workOrderRepository = workOrderRepository;
@@ -64,10 +70,36 @@ public class PaymentHistoryController : ControllerBase
 
             _logger.LogInformation("Retrieving payment history for owner {OwnerId}", owner.Id);
 
-            var payments = await _servicePaymentRepository.FindByOwnerIdAsync(owner.Id);
+            // Get subscription payments
+            var subscriptionPayments = await _paymentRepository.FindByUserIdAsync(user.Id);
+
+            // Get service payments
+            var servicePayments = await _servicePaymentRepository.FindByOwnerIdAsync(owner.Id);
 
             var paymentHistory = new List<object>();
-            foreach (var payment in payments)
+
+            // Add subscription payments
+            foreach (var payment in subscriptionPayments)
+            {
+                var subscription = await _subscriptionRepository.FindByIdAsync(payment.SubscriptionId);
+
+                paymentHistory.Add(new
+                {
+                    paymentId = payment.Id,
+                    type = "Subscription",
+                    description = $"Subscription: {subscription?.PlanName ?? "Plan"}",
+                    totalAmount = payment.Amount.Amount,
+                    platformFee = 0m,
+                    providerAmount = 0m,
+                    status = "Completed",
+                    createdAt = DateTime.Now, // No tenemos fecha en Payment
+                    completedAt = (DateTime?)null,
+                    stripeSessionId = payment.StripeSession.SessionId
+                });
+            }
+
+            // Add service payments
+            foreach (var payment in servicePayments)
             {
                 // Get work order details
                 var workOrder = await _workOrderRepository.FindByIdAsync(payment.WorkOrderId);
@@ -75,33 +107,38 @@ public class PaymentHistoryController : ControllerBase
                 paymentHistory.Add(new
                 {
                     paymentId = payment.Id,
+                    type = "Service",
                     workOrderId = payment.WorkOrderId,
                     workOrderNumber = workOrder?.WorkOrderNumber ?? "N/A",
                     workOrderTitle = workOrder?.Title ?? "N/A",
                     serviceRequestId = payment.ServiceRequestId,
                     providerId = payment.ProviderId,
+                    description = payment.Description,
                     totalAmount = payment.TotalAmount,
                     platformFee = payment.PlatformFee,
                     providerAmount = payment.ProviderAmount,
                     status = payment.Status,
-                    description = payment.Description,
                     createdAt = payment.CreatedAt,
                     completedAt = payment.CompletedAt,
                     stripePaymentIntentId = payment.StripePaymentIntentId
                 });
             }
 
-            var totalPaid = payments.Sum(p => p.TotalAmount);
-            var totalPlatformFees = payments.Sum(p => p.PlatformFee);
+            var totalSubscriptionPayments = subscriptionPayments.Sum(p => p.Amount.Amount);
+            var totalServicePayments = servicePayments.Sum(p => p.TotalAmount);
+            var totalPaid = totalSubscriptionPayments + totalServicePayments;
+            var totalPlatformFees = servicePayments.Sum(p => p.PlatformFee);
 
             return Ok(new
             {
                 ownerId = owner.Id,
                 ownerName = $"{owner.Name.FirstName} {owner.Name.LastName}",
-                totalPayments = payments.Count(),
+                totalPayments = subscriptionPayments.Count() + servicePayments.Count(),
                 totalPaid,
+                totalSubscriptionPayments,
+                totalServicePayments,
                 totalPlatformFees,
-                payments = paymentHistory
+                payments = paymentHistory.OrderByDescending(p => ((dynamic)p).createdAt).ToList()
             });
         }
         catch (Exception ex)
@@ -137,10 +174,36 @@ public class PaymentHistoryController : ControllerBase
 
             _logger.LogInformation("Retrieving payment history for provider {ProviderId}", provider.Id);
 
-            var payments = await _servicePaymentRepository.FindByProviderIdAsync(provider.Id);
+            // Get subscription payments (their own subscription)
+            var subscriptionPayments = await _paymentRepository.FindByUserIdAsync(user.Id);
+
+            // Get service payments (money received from services)
+            var servicePayments = await _servicePaymentRepository.FindByProviderIdAsync(provider.Id);
 
             var paymentHistory = new List<object>();
-            foreach (var payment in payments)
+
+            // Add subscription payments (expenses)
+            foreach (var payment in subscriptionPayments)
+            {
+                var subscription = await _subscriptionRepository.FindByIdAsync(payment.SubscriptionId);
+
+                paymentHistory.Add(new
+                {
+                    paymentId = payment.Id,
+                    type = "Subscription",
+                    description = $"Subscription: {subscription?.PlanName ?? "Plan"}",
+                    totalAmount = payment.Amount.Amount,
+                    platformFee = 0m,
+                    providerReceived = -payment.Amount.Amount, // Negative because it's an expense
+                    status = "Completed",
+                    createdAt = DateTime.Now,
+                    completedAt = (DateTime?)null,
+                    stripeSessionId = payment.StripeSession.SessionId
+                });
+            }
+
+            // Add service payments (income)
+            foreach (var payment in servicePayments)
             {
                 // Get work order details
                 var workOrder = await _workOrderRepository.FindByIdAsync(payment.WorkOrderId);
@@ -148,36 +211,40 @@ public class PaymentHistoryController : ControllerBase
                 paymentHistory.Add(new
                 {
                     paymentId = payment.Id,
+                    type = "Service",
                     workOrderId = payment.WorkOrderId,
                     workOrderNumber = workOrder?.WorkOrderNumber ?? "N/A",
                     workOrderTitle = workOrder?.Title ?? "N/A",
                     serviceRequestId = payment.ServiceRequestId,
                     ownerId = payment.OwnerId,
+                    description = payment.Description,
                     totalAmount = payment.TotalAmount,
                     platformFee = payment.PlatformFee,
                     providerReceived = payment.ProviderAmount,
                     status = payment.Status,
-                    description = payment.Description,
                     createdAt = payment.CreatedAt,
                     completedAt = payment.CompletedAt,
                     stripePaymentIntentId = payment.StripePaymentIntentId
                 });
             }
 
-            var totalReceived = payments.Sum(p => p.ProviderAmount);
-            var totalGrossRevenue = payments.Sum(p => p.TotalAmount);
-            var totalPlatformFees = payments.Sum(p => p.PlatformFee);
+            var totalSubscriptionExpenses = subscriptionPayments.Sum(p => p.Amount.Amount);
+            var totalReceived = servicePayments.Sum(p => p.ProviderAmount);
+            var totalGrossRevenue = servicePayments.Sum(p => p.TotalAmount);
+            var totalPlatformFees = servicePayments.Sum(p => p.PlatformFee);
 
             return Ok(new
             {
                 providerId = provider.Id,
                 providerName = provider.CompanyName,
                 currentBalance = provider.Balance,
-                totalPayments = payments.Count(),
-                totalReceived, // What provider actually received after platform fees
+                totalPayments = subscriptionPayments.Count() + servicePayments.Count(),
+                totalReceived, // What provider received from services (after platform fees)
                 totalGrossRevenue, // Total amount paid by customers
                 totalPlatformFees, // Total fees paid to platform
-                payments = paymentHistory
+                totalSubscriptionExpenses, // Total spent on subscription
+                netIncome = totalReceived - totalSubscriptionExpenses, // Net after expenses
+                payments = paymentHistory.OrderByDescending(p => ((dynamic)p).createdAt).ToList()
             });
         }
         catch (Exception ex)

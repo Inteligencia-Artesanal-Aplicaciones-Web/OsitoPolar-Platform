@@ -11,6 +11,7 @@ using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
 using Swashbuckle.AspNetCore.Annotations;
 using Stripe.Checkout;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
 
 namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.REST;
 
@@ -27,6 +28,7 @@ public class PaymentsController : ControllerBase
     private readonly IRenterProviderRepository _providerRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IEquipmentRepository _equipmentRepository;
+    private readonly IPaymentRepository _paymentRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly NotificationGeneratorService _notificationGenerator;
 
@@ -41,6 +43,7 @@ public class PaymentsController : ControllerBase
         IRenterProviderRepository providerRepository,
         ISubscriptionRepository subscriptionRepository,
         IEquipmentRepository equipmentRepository,
+        IPaymentRepository paymentRepository,
         IUnitOfWork unitOfWork,
         NotificationGeneratorService notificationGenerator)
     {
@@ -51,6 +54,7 @@ public class PaymentsController : ControllerBase
         _providerRepository = providerRepository;
         _subscriptionRepository = subscriptionRepository;
         _equipmentRepository = equipmentRepository;
+        _paymentRepository = paymentRepository;
         _unitOfWork = unitOfWork;
         _notificationGenerator = notificationGenerator;
     }
@@ -213,7 +217,20 @@ public class PaymentsController : ControllerBase
 
             Console.WriteLine($"[CompletePlanUpgrade] Plan: {plan.PlanName}");
 
-            // 4. Update Owner or Provider plan
+            // 4. Create Payment record for this subscription
+            var payment = new Payment(
+                userId,
+                planId,
+                plan.Price.Amount,
+                session.Id,
+                session.CustomerEmail ?? session.CustomerDetails?.Email,
+                $"Subscription to {plan.PlanName}"
+            );
+            await _paymentRepository.AddAsync(payment);
+
+            Console.WriteLine($"[CompletePlanUpgrade] Payment record created: {payment.Id}");
+
+            // 5. Update Owner or Provider plan
             var owner = await _ownerRepository.FindByUserIdAsync(userId);
             if (owner != null)
             {
