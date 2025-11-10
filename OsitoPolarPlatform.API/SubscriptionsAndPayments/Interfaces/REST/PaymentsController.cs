@@ -379,12 +379,26 @@ public class PaymentsController : ControllerBase
                 Console.WriteLine($"[CompleteRental] Provider balance updated: ${provider.Balance}");
             }
 
-            // 6. Transfer equipment ownership to the renter (Owner)
-            // This transfers the equipment from Provider to Owner after successful payment
-            equipment.TransferOwnership(ownerId, "Owner");
-            _equipmentRepository.Update(equipment);
+            // 6. Set rental dates and assign equipment to owner
+            // Calculate rental period
+            var startDate = DateTimeOffset.UtcNow;
+            var endDate = startDate.AddMonths(months);
 
-            Console.WriteLine($"[CompleteRental] Equipment ownership transferred to owner {ownerId}");
+            Console.WriteLine($"[CompleteRental] Setting rental period: {startDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}");
+
+            // Set rental dates on the equipment
+            if (equipment.RentalInfo != null)
+            {
+                equipment.RentalInfo.SetRentalDates(startDate, endDate);
+                // Assign equipment to owner (changes owner_type from Provider to Owner)
+                equipment.AssignRental(ownerId);
+                _equipmentRepository.Update(equipment);
+                Console.WriteLine($"[CompleteRental] Equipment rental assigned to owner {ownerId} for {months} month(s)");
+            }
+            else
+            {
+                throw new InvalidOperationException("Equipment does not have rental information");
+            }
 
             // 7. Save all changes
             await _unitOfWork.CompleteAsync();
@@ -395,20 +409,20 @@ public class PaymentsController : ControllerBase
             // 9. Send notifications
             if (owner != null && provider != null)
             {
-                // Notify owner about successful purchase
+                // Notify owner about successful rental
                 await _notificationGenerator.NotifyEquipmentAnomaly(
                     ownerId,
                     equipmentId,
                     equipment.Name,
                     "rental_completed",
-                    $"You have successfully acquired {equipment.Name}. The equipment is now yours!");
+                    $"You have successfully rented {equipment.Name} for {months} month(s). Rental ends on {endDate:yyyy-MM-dd}.");
 
                 // Notify provider about payment received
                 await _notificationGenerator.NotifyPaymentReceived(
                     provider.UserId,
                     0, // No service request for rental
                     providerAmount,
-                    $"Rental payment for {equipment.Name}");
+                    $"Rental payment for {equipment.Name} ({months} months)");
 
                 Console.WriteLine($"[CompleteRental] Notifications sent to both parties");
             }
@@ -416,22 +430,26 @@ public class PaymentsController : ControllerBase
             return Ok(new
             {
                 success = true,
-                message = "Equipment ownership transferred successfully",
-                purchase = new
+                message = $"Equipment rented successfully for {months} month(s)",
+                rental = new
                 {
                     equipmentId,
                     equipmentName = equipment.Name,
                     equipmentType = equipment.Type.ToString(),
-                    newOwnerId = ownerId,
-                    newOwnerName = owner != null ? $"{owner.Name.FirstName} {owner.Name.LastName}" : "Unknown",
-                    previousOwnerId = providerId,
-                    previousOwnerName = provider?.CompanyName ?? "Unknown",
+                    renterId = ownerId,
+                    renterName = owner != null ? $"{owner.Name.FirstName} {owner.Name.LastName}" : "Unknown",
+                    providerId,
+                    providerName = provider?.CompanyName ?? "Unknown",
+                    rentalStartDate = startDate,
+                    rentalEndDate = endDate,
+                    durationMonths = months,
+                    monthlyFee = monthlyFee,
                     totalAmount,
                     platformFee,
                     providerReceived = providerAmount,
                     platformFeePercentage = PLATFORM_FEE_PERCENTAGE,
                     transactionId = session.PaymentIntentId,
-                    transferredAt = DateTime.UtcNow
+                    completedAt = DateTime.UtcNow
                 }
             });
         }

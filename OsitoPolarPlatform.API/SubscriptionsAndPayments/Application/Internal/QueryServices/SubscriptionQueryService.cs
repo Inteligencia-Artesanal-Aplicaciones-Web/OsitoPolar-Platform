@@ -15,8 +15,10 @@ public class SubscriptionQueryService(ISubscriptionRepository subscriptionReposi
     public async Task<IEnumerable<Subscription>> Handle(GetPlansQuery query)
     {
         var plans = await subscriptionRepository.ListAsync();
+        // Provider plans: IDs 4-6 (based on MaxClients being present or unlimited)
+        // Owner plans: IDs 1-3 (based on MaxEquipment being present)
         return query.UserType.ToLower() == "provider"
-            ? plans.Where(p => p.MaxClients.HasValue)
-            : plans.Where(p => p.MaxEquipment.HasValue);
+            ? plans.Where(p => p.Id >= 4) // Provider plans (including unlimited)
+            : plans.Where(p => p.Id <= 3);  // Owner plans
     }
 }

@@ -59,8 +59,8 @@ public class EquipmentQueryService(IEquipmentRepository equipmentRepository) : I
     {
         var equipment = await equipmentRepository.FindByIdAsync(query.EquipmentId);
 
-        // Verify it's actually available for rent
-        if (equipment?.RentalInfo == null || !equipment.RentalInfo.IsActive())
+        // Verify it's published for rent (has rental info with monthly fee)
+        if (equipment?.RentalInfo == null || equipment.RentalInfo.MonthlyFee <= 0)
             return null;
 
         return equipment;

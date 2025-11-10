@@ -7,6 +7,7 @@ using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 using Stripe.Checkout;
+using Stripe;
 
 namespace OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST;
 
@@ -23,15 +24,21 @@ public class RentalEquipmentController : ControllerBase
     private readonly IEquipmentQueryService _equipmentQueryService;
     private readonly IOwnerRepository _ownerRepository;
     private readonly IRenterProviderRepository _providerRepository;
+    private readonly IConfiguration _configuration;
 
     public RentalEquipmentController(
         IEquipmentQueryService equipmentQueryService,
         IOwnerRepository ownerRepository,
-        IRenterProviderRepository providerRepository)
+        IRenterProviderRepository providerRepository,
+        IConfiguration configuration)
     {
         _equipmentQueryService = equipmentQueryService;
         _ownerRepository = ownerRepository;
         _providerRepository = providerRepository;
+        _configuration = configuration;
+
+        // Initialize Stripe API key
+        StripeConfiguration.ApiKey = _configuration["PaymentProviders:Stripe:SecretKey"];
     }
 
     /// <summary>
@@ -64,6 +71,7 @@ public class RentalEquipmentController : ControllerBase
                 type = e.Type.ToString(),
                 model = e.Model,
                 manufacturer = e.Manufacturer,
+                serialNumber = e.SerialNumber,
                 monthlyFee = e.RentalInfo?.MonthlyFee ?? 0,
                 availableFrom = e.RentalInfo?.StartDate,
                 availableUntil = e.RentalInfo?.EndDate,
@@ -76,13 +84,21 @@ public class RentalEquipmentController : ControllerBase
                     longitude = e.Location.Coordinates.Longitude
                 },
                 technicalDetails = e.TechnicalDetails,
-                isAvailable = e.RentalInfo?.IsActive() ?? false,
-                currentTemperature = e.CurrentTemperature,
-                serialNumber = e.SerialNumber
+                notes = e.Notes,
+                description = e.TechnicalDetails, // Frontend might expect 'description'
+                // Equipment is available if it has NO rental dates (hasn't been rented yet)
+                isAvailable = e.RentalInfo?.StartDate == null && e.RentalInfo?.EndDate == null,
+                currentTemperature = e.CurrentTemperature
             });
 
-            Console.WriteLine($"[RentalEquipment] Returning {response.Count()} equipment items");
-            return Ok(response);
+            var responseList = response.ToList();
+            Console.WriteLine($"[RentalEquipment] Returning {responseList.Count} equipment items");
+            if (responseList.Any())
+            {
+                Console.WriteLine($"[RentalEquipment] First equipment ID: {responseList.First().id}");
+                Console.WriteLine($"[RentalEquipment] All IDs: {string.Join(", ", responseList.Select(e => e.id))}");
+            }
+            return Ok(responseList);
         }
         catch (Exception ex)
         {
@@ -137,7 +153,10 @@ public class RentalEquipmentController : ControllerBase
                     longitude = equipment.Location.Coordinates.Longitude
                 },
                 technicalDetails = equipment.TechnicalDetails,
-                isAvailable = equipment.RentalInfo.IsActive(),
+                notes = equipment.Notes,
+                description = equipment.TechnicalDetails,
+                // Equipment is available if it hasn't been rented yet (NULL dates)
+                isAvailable = equipment.RentalInfo.StartDate == null && equipment.RentalInfo.EndDate == null,
                 currentTemperature = equipment.CurrentTemperature,
                 setTemperature = equipment.SetTemperature,
                 optimalTemperatureMin = equipment.OptimalTemperatureMin,
@@ -190,9 +209,7 @@ public class RentalEquipmentController : ControllerBase
             if (equipment == null || equipment.RentalInfo == null)
                 return NotFound(new { message = "Equipment not found or not available for rent" });
 
-            if (!equipment.RentalInfo.IsActive())
-                return BadRequest(new { message = "Equipment rental period is not active" });
-
+            // Check if equipment is already rented
             if (equipment.OwnerType == "Owner")
                 return BadRequest(new { message = "Equipment is already rented" });
 

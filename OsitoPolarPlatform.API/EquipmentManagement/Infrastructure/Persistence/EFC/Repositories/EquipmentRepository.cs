@@ -45,24 +45,31 @@ public class EquipmentRepository(AppDbContext context) : BaseRepository<Equipmen
 
     public async Task<IEnumerable<Equipment>> FindAvailableForRentAsync()
     {
-        var now = DateTimeOffset.UtcNow;
+        // Query equipment available in the rental marketplace
+        // This is equipment owned by providers that is not yet rented
         return await Context.Set<Equipment>()
-            .Where(e => e.RentalInfo != null &&
-                        e.RentalInfo.StartDate <= now &&
-                        e.RentalInfo.EndDate >= now &&
-                        e.OwnerType == "Provider") // Not yet rented by an owner
+            .FromSqlRaw(@"
+                SELECT * FROM equipment
+                WHERE owner_type = 'Provider'
+                AND rental_monthly_fee IS NOT NULL
+                AND rental_provider_id IS NOT NULL
+                AND rental_start_date IS NULL
+                AND rental_end_date IS NULL")
             .ToListAsync();
     }
 
     public async Task<IEnumerable<Equipment>> FindAvailableForRentByTypeAsync(string type)
     {
-        var now = DateTimeOffset.UtcNow;
+        // Query equipment available in the rental marketplace filtered by type
         return await Context.Set<Equipment>()
-            .Where(e => e.RentalInfo != null &&
-                        e.RentalInfo.StartDate <= now &&
-                        e.RentalInfo.EndDate >= now &&
-                        e.OwnerType == "Provider" &&
-                        e.Type.ToString().ToLower() == type.ToLower())
+            .FromSqlRaw(@"
+                SELECT * FROM equipment
+                WHERE owner_type = 'Provider'
+                AND rental_monthly_fee IS NOT NULL
+                AND rental_provider_id IS NOT NULL
+                AND rental_start_date IS NULL
+                AND rental_end_date IS NULL
+                AND LOWER(type) = {0}", type.ToLower())
             .ToListAsync();
     }
 
