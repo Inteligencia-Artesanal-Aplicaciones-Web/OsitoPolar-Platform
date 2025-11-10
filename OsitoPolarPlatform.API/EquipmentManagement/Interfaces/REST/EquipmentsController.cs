@@ -58,27 +58,52 @@ public class EquipmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all equipments for the authenticated owner.
+    /// Helper method to get the authenticated user profile (Owner or Provider)
+    /// Both user types can manage equipment
+    /// </summary>
+    /// <returns>The profile ID and user type or error result</returns>
+    private async Task<(ActionResult? error, int? profileId, string? userType)> GetAuthenticatedUserProfile()
+    {
+        var user = (User?)HttpContext.Items["User"];
+        if (user == null)
+            return (Unauthorized(new { message = "User not authenticated" }), null, null);
+
+        // Check if user is an Owner
+        var ownerProfile = await _ownerRepository.FindByUserIdAsync(user.Id);
+        if (ownerProfile != null)
+            return (null, ownerProfile.Id, "Owner");
+
+        // Check if user is a Provider
+        var providerProfile = await _providerRepository.FindByUserIdAsync(user.Id);
+        if (providerProfile != null)
+            return (null, providerProfile.Id, "Provider");
+
+        return (StatusCode(StatusCodes.Status403Forbidden,
+            new { message = "User must be an owner or provider to manage equipment." }), null, null);
+    }
+
+    /// <summary>
+    /// Gets all equipments for the authenticated user (Owner or Provider).
     /// </summary>
     /// <returns>A list of equipments owned by the authenticated user.</returns>
     [HttpGet]
     [SwaggerOperation(
         Summary = "Get All Equipments",
-        Description = "Gets all equipments for the authenticated owner only",
+        Description = "Gets all equipments for the authenticated user (Owner or Provider)",
         OperationId = "GetAllEquipments")]
     [SwaggerResponse(StatusCodes.Status200OK, "Equipments retrieved successfully")]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "User not authenticated")]
-    [SwaggerResponse(StatusCodes.Status403Forbidden, "User is not an owner")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "User is not an owner or provider")]
     public async Task<IActionResult> GetAllEquipments()
     {
         try
         {
-            // Get authenticated owner
-            var (error, ownerProfile) = await GetAuthenticatedOwner();
+            // Get authenticated user profile (Owner or Provider)
+            var (error, profileId, userType) = await GetAuthenticatedUserProfile();
             if (error != null) return error;
 
-            // Get equipment for this owner only
-            var query = new GetEquipmentsByOwnerIdQuery(ownerProfile!.Id);
+            // Get equipment for this user
+            var query = new GetEquipmentsByOwnerIdQuery(profileId!.Value);
             var equipments = await _equipmentQueryService.Handle(query);
             var resources = equipments.Select(EquipmentResourceFromEntityAssembler.ToResourceFromEntity);
 
@@ -98,15 +123,15 @@ public class EquipmentsController : ControllerBase
     [HttpGet("{equipmentId:int}")]
     [SwaggerOperation(
         Summary = "Get Equipment by Id",
-        Description = "Returns equipment by its unique identifier if it belongs to the authenticated owner.",
+        Description = "Returns equipment by its unique identifier if it belongs to the authenticated user (Owner or Provider).",
         OperationId = "GetEquipmentById")]
     [SwaggerResponse(StatusCodes.Status200OK, "Equipment found", typeof(EquipmentResource))]
     [SwaggerResponse(StatusCodes.Status404NotFound, "Equipment not found")]
-    [SwaggerResponse(StatusCodes.Status403Forbidden, "Equipment does not belong to the authenticated owner")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "Equipment does not belong to the authenticated user")]
     public async Task<ActionResult<EquipmentResource>> GetEquipmentById(int equipmentId)
     {
-        // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        // Get authenticated user profile (Owner or Provider)
+        var (error, profileId, userType) = await GetAuthenticatedUserProfile();
         if (error != null) return error;
 
         var getEquipmentByIdQuery = new GetEquipmentByIdQuery(equipmentId);
@@ -115,8 +140,8 @@ public class EquipmentsController : ControllerBase
         if (equipment == null)
             return NotFound($"Equipment with ID {equipmentId} not found");
 
-        // Check if equipment belongs to the authenticated owner
-        if (equipment.OwnerId != ownerProfile!.Id)
+        // Check if equipment belongs to the authenticated user
+        if (equipment.OwnerId != profileId!.Value)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to view this equipment" });
 
@@ -127,36 +152,36 @@ public class EquipmentsController : ControllerBase
 
     /// <summary>
     /// Creates new equipment in the system.
-    /// Equipment will be automatically associated with the authenticated owner.
+    /// Equipment will be automatically associated with the authenticated user (Owner or Provider).
     /// </summary>
     /// <param name="resource">Equipment creation data</param>
     /// <returns>Created equipment</returns>
     [HttpPost]
     [SwaggerOperation(
         Summary = "Create Equipment",
-        Description = "Creates a new equipment in the system. Equipment is automatically associated with the authenticated owner.",
+        Description = "Creates a new equipment in the system. Equipment is automatically associated with the authenticated user (Owner or Provider).",
         OperationId = "CreateEquipment")]
     [SwaggerResponse(StatusCodes.Status201Created, "Equipment created", typeof(EquipmentResource))]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "The equipment could not be created")]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "User not authenticated")]
-    [SwaggerResponse(StatusCodes.Status403Forbidden, "User is not an owner")]
+    [SwaggerResponse(StatusCodes.Status403Forbidden, "User is not an owner or provider")]
     [SwaggerResponse(StatusCodes.Status409Conflict, "Equipment with serial number or code already exists")]
     public async Task<ActionResult<EquipmentResource>> CreateEquipment([FromBody] CreateEquipmentResource resource)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        // Get authenticated user profile (Owner or Provider)
+        var (error, profileId, userType) = await GetAuthenticatedUserProfile();
         if (error != null) return error;
 
         try
         {
-            // Create command with authenticated owner's ID
+            // Create command with authenticated user's ID
             var createEquipmentCommand = CreateEquipmentCommandFromResourceAssembler.ToCommandFromResource(
                 resource,
-                ownerProfile!.Id,
-                "Owner");
+                profileId!.Value,
+                userType!);
             var equipment = await _equipmentCommandService.Handle(createEquipmentCommand);
 
             if (equipment == null)
