@@ -9,8 +9,8 @@ namespace OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Reposit
 public class ProfileRepository(AppDbContext context)
 : BaseRepository<Profile>(context), IProfileRepository
 {
- public async Task<Profile?> FindProfileByEmailAsync(EmailAddress email)
+ public Task<Profile?> FindProfileByEmailAsync(EmailAddress email)
  {
-  return Context.Set<Profile>().FirstOrDefault(p => p.Email == email);
+  return Task.FromResult(Context.Set<Profile>().FirstOrDefault(p => p.Email == email));
  }    
 }

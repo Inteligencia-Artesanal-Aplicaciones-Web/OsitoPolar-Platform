@@ -2,6 +2,8 @@ using Cortex.Mediator.Commands;
 using Cortex.Mediator.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using OsitoPolarPlatform.API.Shared.Domain.Services;
+using OsitoPolarPlatform.API.Shared.Infrastructure.EventBus;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.Analytics.Domain.Repositories;
@@ -31,6 +33,22 @@ using OsitoPolarPlatform.API.IAM.Infrastructure.Tokens.JWT.Configuration;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Tokens.JWT.Services;
 using OsitoPolarPlatform.API.IAM.Interfaces.ACL;
 using OsitoPolarPlatform.API.IAM.Interfaces.ACL.Services;
+using OsitoPolarPlatform.API.Profiles.Application.ACL;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Application.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
+using OsitoPolarPlatform.API.ServiceRequests.Application.ACL;
+using OsitoPolarPlatform.API.ServiceRequests.Interfaces.ACL;
+using OsitoPolarPlatform.API.WorkOrders.Application.ACL;
+using OsitoPolarPlatform.API.WorkOrders.Interfaces.ACL;
+using OsitoPolarPlatform.API.bc_technicians.Application.ACL;
+using OsitoPolarPlatform.API.bc_technicians.Interfaces.ACL;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.ACL;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
+using OsitoPolarPlatform.API.Notifications.Application.ACL;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
+using OsitoPolarPlatform.API.Analytics.Application.ACL;
+using OsitoPolarPlatform.API.Analytics.Interfaces.ACL;
 using OsitoPolarPlatform.API.Profiles.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.Profiles.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
@@ -44,6 +62,15 @@ using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
 using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.IAM.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.Notifications.Infrastructure.Persistence.EFC.Configuration;
+using OsitoPolarPlatform.API.Analytics.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Mediator.Cortex.Configuration;
@@ -131,6 +158,7 @@ builder.Services.AddScoped<IProfileCommandService, ProfileCommandService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 builder.Services.AddScoped<IOwnerRepository, OwnerRepository>();
 builder.Services.AddScoped<IRenterProviderRepository, RenterProviderRepository>();
+builder.Services.AddScoped<IProfilesContextFacade, ProfilesContextFacade>();
 
 
 // IAM Bounded Context Injection Configuration
@@ -156,31 +184,37 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IServiceRequestRepository, ServiceRequestRepository>();
 builder.Services.AddScoped<IServiceRequestCommandService, ServiceRequestCommandService>();
 builder.Services.AddScoped<IServiceRequestQueryService, ServiceRequestQueryService>();
+builder.Services.AddScoped<IServiceRequestContextFacade, ServiceRequestContextFacade>();
 // Analytics Bounded Context
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IAnalyticsCommandService, AnalyticsCommandService>();
 builder.Services.AddScoped<IAnalyticsQueryService, AnalyticsQueryService>();
+builder.Services.AddScoped<IAnalyticsContextFacade, AnalyticsContextFacade>();
 
 //technicians Bounded Context
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
 builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
 builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
+builder.Services.AddScoped<ITechnicianContextFacade, TechnicianContextFacade>();
 
 //Equipment Bounded Context
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
 builder.Services.AddScoped<IEquipmentCommandService, EquipmentCommandService>();
 builder.Services.AddScoped<IEquipmentQueryService, EquipmentQueryService>();
+builder.Services.AddScoped<IEquipmentContextFacade, EquipmentContextFacade>();
 
 // Configure Dependency Injection for Work Orders Bounded Context
 builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
 builder.Services.AddScoped<IWorkOrderCommandService, WorkOrderCommandService>();
 builder.Services.AddScoped<IWorkOrderQueryService, WorkOrderQueryService>();
+builder.Services.AddScoped<IWorkOrderContextFacade, WorkOrderContextFacade>();
 
 // Subscriptions and Payments Bounded Context
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionCommandService, SubscriptionCommandService>();
 builder.Services.AddScoped<ISubscriptionQueryService, SubscriptionQueryService>();
 builder.Services.AddScoped<IServicePaymentRepository, ServicePaymentRepository>();
+builder.Services.AddScoped<ISubscriptionContextFacade, SubscriptionContextFacade>();
 
 // Payment Providers Configuration
 builder.Services.Configure<OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Stripe.StripeConfiguration>(
@@ -225,6 +259,7 @@ builder.Services.AddScoped<OsitoPolarPlatform.API.Notifications.Domain.Services.
 builder.Services.AddScoped<OsitoPolarPlatform.API.Notifications.Domain.Services.IInAppNotificationQueryService,
     OsitoPolarPlatform.API.Notifications.Application.Internal.QueryServices.InAppNotificationQueryService>();
 builder.Services.AddScoped<OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices.NotificationGeneratorService>();
+builder.Services.AddScoped<INotificationContextFacade, NotificationContextFacade>();
 
 
 
@@ -244,6 +279,9 @@ builder.Services.AddCortexMediator(
     {
         options.AddOpenCommandPipelineBehavior(typeof(LoggingCommandBehavior<>));
     });
+
+// Add Event Bus for Domain Events
+builder.Services.AddScoped<IEventBus, CortexEventBus>();
 
 
 
@@ -284,7 +322,36 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 if (connectionString is null)
     throw new Exception("Database connection string is not set.");
 
+// Register AppDbContext (used for database initialization and seeding)
 builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+// Register Bounded Context-specific DbContexts (FASE 5: DbContext separation)
+builder.Services.AddDbContext<IAMDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<ProfilesDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<EquipmentDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<ServiceRequestsDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<WorkOrdersDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<TechniciansDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<SubscriptionsDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<NotificationsDbContext>(options =>
+    options.UseMySQL(connectionString));
+
+builder.Services.AddDbContext<AnalyticsDbContext>(options =>
     options.UseMySQL(connectionString));
 
 var app = builder.Build();

@@ -5,10 +5,14 @@ using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Cu
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Izipay;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Events;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Events;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
-using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Shared.Domain.Services;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
 using Swashbuckle.AspNetCore.Annotations;
 using Stripe.Checkout;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
@@ -24,13 +28,13 @@ public class PaymentsController : ControllerBase
     private readonly StripePaymentProvider _stripeProvider;
     private readonly CulqiPaymentProvider _culqiProvider;
     private readonly IzipayPaymentProvider _izipayProvider;
-    private readonly IOwnerRepository _ownerRepository;
-    private readonly IRenterProviderRepository _providerRepository;
-    private readonly ISubscriptionRepository _subscriptionRepository;
-    private readonly IEquipmentRepository _equipmentRepository;
+    private readonly IProfilesContextFacade _profilesFacade;
+    private readonly ISubscriptionContextFacade _subscriptionFacade;
+    private readonly IEquipmentContextFacade _equipmentFacade;
     private readonly IPaymentRepository _paymentRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly NotificationGeneratorService _notificationGenerator;
+    private readonly INotificationContextFacade _notificationFacade;
+    private readonly IEventBus _eventBus;
 
     // Platform commission percentage for rental transactions
     private const decimal PLATFORM_FEE_PERCENTAGE = 15.0m;
@@ -39,24 +43,24 @@ public class PaymentsController : ControllerBase
         StripePaymentProvider stripeProvider,
         CulqiPaymentProvider culqiProvider,
         IzipayPaymentProvider izipayProvider,
-        IOwnerRepository ownerRepository,
-        IRenterProviderRepository providerRepository,
-        ISubscriptionRepository subscriptionRepository,
-        IEquipmentRepository equipmentRepository,
+        IProfilesContextFacade profilesFacade,
+        ISubscriptionContextFacade subscriptionFacade,
+        IEquipmentContextFacade equipmentFacade,
         IPaymentRepository paymentRepository,
         IUnitOfWork unitOfWork,
-        NotificationGeneratorService notificationGenerator)
+        INotificationContextFacade notificationFacade,
+        IEventBus eventBus)
     {
         _stripeProvider = stripeProvider;
         _culqiProvider = culqiProvider;
         _izipayProvider = izipayProvider;
-        _ownerRepository = ownerRepository;
-        _providerRepository = providerRepository;
-        _subscriptionRepository = subscriptionRepository;
-        _equipmentRepository = equipmentRepository;
+        _profilesFacade = profilesFacade;
+        _subscriptionFacade = subscriptionFacade;
+        _equipmentFacade = equipmentFacade;
         _paymentRepository = paymentRepository;
         _unitOfWork = unitOfWork;
-        _notificationGenerator = notificationGenerator;
+        _notificationFacade = notificationFacade;
+        _eventBus = eventBus;
     }
 
     /// <summary>
@@ -205,8 +209,8 @@ public class PaymentsController : ControllerBase
             Console.WriteLine($"[CompletePlanUpgrade] UserId: {userId}, PlanId: {planId}");
 
             // 3. Get the new plan details
-            var plan = await _subscriptionRepository.FindByIdAsync(planId);
-            if (plan == null)
+            var planData = await _subscriptionFacade.GetSubscriptionDataById(planId);
+            if (planData == null)
             {
                 return BadRequest(new
                 {
@@ -215,27 +219,28 @@ public class PaymentsController : ControllerBase
                 });
             }
 
-            Console.WriteLine($"[CompletePlanUpgrade] Plan: {plan.PlanName}");
+            Console.WriteLine($"[CompletePlanUpgrade] Plan: {planData.Value.planName}");
 
             // 4. Create Payment record for this subscription
             var payment = new Payment(
                 userId,
                 planId,
-                plan.Price.Amount,
+                planData.Value.price,
                 session.Id,
                 session.CustomerEmail ?? session.CustomerDetails?.Email,
-                $"Subscription to {plan.PlanName}"
+                $"Subscription to {planData.Value.planName}"
             );
             await _paymentRepository.AddAsync(payment);
 
             Console.WriteLine($"[CompletePlanUpgrade] Payment record created: {payment.Id}");
 
             // 5. Update Owner or Provider plan
-            var owner = await _ownerRepository.FindByUserIdAsync(userId);
-            if (owner != null)
+            var ownerId = await _profilesFacade.FetchOwnerIdByUserId(userId);
+            if (ownerId > 0)
             {
                 // Update Owner plan
-                if (!plan.MaxEquipment.HasValue)
+                var limits = await _subscriptionFacade.GetSubscriptionLimits(planId);
+                if (limits == null || limits.Value.maxEquipment == 0)
                 {
                     return BadRequest(new
                     {
@@ -244,12 +249,23 @@ public class PaymentsController : ControllerBase
                     });
                 }
 
-                Console.WriteLine($"[CompletePlanUpgrade] Updating Owner {owner.Id} to plan {planId}");
-                owner.UpdatePlan(planId, plan.MaxEquipment.Value);
-                _ownerRepository.Update(owner);
+                Console.WriteLine($"[CompletePlanUpgrade] Updating Owner {ownerId} to plan {planId}");
+                await _profilesFacade.UpdateOwnerPlan(ownerId, planId, limits.Value.maxEquipment);
                 await _unitOfWork.CompleteAsync();
 
                 Console.WriteLine($"[CompletePlanUpgrade] Owner plan updated successfully");
+
+                // Publish PaymentProcessedEvent for async communication
+                var paymentEvent = new PaymentProcessedEvent(
+                    payment.Id,
+                    "Subscription",
+                    userId,
+                    planData.Value.price,
+                    session.Id,
+                    subscriptionId: planId
+                );
+                await _eventBus.PublishAsync(paymentEvent);
+                Console.WriteLine($"[Payments BC] Published PaymentProcessedEvent for subscription payment {payment.Id}");
 
                 return Ok(new
                 {
@@ -257,17 +273,18 @@ public class PaymentsController : ControllerBase
                     message = "Plan upgraded successfully",
                     userType = "Owner",
                     planId,
-                    planName = plan.PlanName,
-                    maxUnits = plan.MaxEquipment.Value,
+                    planName = planData.Value.planName,
+                    maxUnits = limits.Value.maxEquipment,
                     transactionId = session.PaymentIntentId
                 });
             }
 
-            var provider = await _providerRepository.FindByUserIdAsync(userId);
-            if (provider != null)
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(userId);
+            if (providerId > 0)
             {
                 // Update Provider plan
-                if (!plan.MaxClients.HasValue)
+                var limits = await _subscriptionFacade.GetSubscriptionLimits(planId);
+                if (limits == null || limits.Value.maxClients == 0)
                 {
                     return BadRequest(new
                     {
@@ -276,12 +293,23 @@ public class PaymentsController : ControllerBase
                     });
                 }
 
-                Console.WriteLine($"[CompletePlanUpgrade] Updating Provider {provider.Id} to plan {planId}");
-                provider.UpdatePlan(planId, plan.MaxClients.Value);
-                _providerRepository.Update(provider);
+                Console.WriteLine($"[CompletePlanUpgrade] Updating Provider {providerId} to plan {planId}");
+                await _profilesFacade.UpdateProviderPlan(providerId, planId, limits.Value.maxClients);
                 await _unitOfWork.CompleteAsync();
 
                 Console.WriteLine($"[CompletePlanUpgrade] Provider plan updated successfully");
+
+                // Publish PaymentProcessedEvent for async communication
+                var paymentEvent = new PaymentProcessedEvent(
+                    payment.Id,
+                    "Subscription",
+                    userId,
+                    planData.Value.price,
+                    session.Id,
+                    subscriptionId: planId
+                );
+                await _eventBus.PublishAsync(paymentEvent);
+                Console.WriteLine($"[Payments BC] Published PaymentProcessedEvent for subscription payment {payment.Id}");
 
                 return Ok(new
                 {
@@ -289,8 +317,8 @@ public class PaymentsController : ControllerBase
                     message = "Plan upgraded successfully",
                     userType = "Provider",
                     planId,
-                    planName = plan.PlanName,
-                    maxClients = plan.MaxClients.Value,
+                    planName = planData.Value.planName,
+                    maxClients = limits.Value.maxClients,
                     transactionId = session.PaymentIntentId
                 });
             }
@@ -368,8 +396,8 @@ public class PaymentsController : ControllerBase
             Console.WriteLine($"[CompleteRental] EquipmentId: {equipmentId}, OwnerId: {ownerId}, ProviderId: {providerId}, Months: {months}");
 
             // 3. Get equipment
-            var equipment = await _equipmentRepository.FindByIdAsync(equipmentId);
-            if (equipment == null)
+            var equipmentData = await _equipmentFacade.GetEquipmentRentalData(equipmentId);
+            if (equipmentData == null)
             {
                 return BadRequest(new
                 {
@@ -378,7 +406,7 @@ public class PaymentsController : ControllerBase
                 });
             }
 
-            Console.WriteLine($"[CompleteRental] Equipment: {equipment.Name}");
+            Console.WriteLine($"[CompleteRental] Equipment: {equipmentData.Value.name}");
 
             // 4. Calculate payment breakdown
             var totalAmount = monthlyFee * months;
@@ -388,12 +416,10 @@ public class PaymentsController : ControllerBase
             Console.WriteLine($"[CompleteRental] Payment breakdown - Total: ${totalAmount}, Platform: ${platformFee}, Provider gets: ${providerAmount}");
 
             // 5. Update provider balance
-            var provider = await _providerRepository.FindByIdAsync(providerId);
-            if (provider != null)
+            var balanceUpdated = await _profilesFacade.UpdateProviderBalance(providerId, providerAmount, $"Rental revenue for equipment {equipmentData.Value.name}");
+            if (balanceUpdated)
             {
-                provider.RecordServiceRevenue(providerAmount, $"Rental revenue for equipment {equipment.Name}");
-                _providerRepository.Update(provider);
-                Console.WriteLine($"[CompleteRental] Provider balance updated: ${provider.Balance}");
+                Console.WriteLine($"[CompleteRental] Provider balance updated with ${providerAmount}");
             }
 
             // 6. Set rental dates and assign equipment to owner
@@ -404,45 +430,58 @@ public class PaymentsController : ControllerBase
             Console.WriteLine($"[CompleteRental] Setting rental period: {startDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}");
 
             // Set rental dates on the equipment
-            if (equipment.RentalInfo != null)
-            {
-                equipment.RentalInfo.SetRentalDates(startDate, endDate);
-                // Assign equipment to owner (changes owner_type from Provider to Owner)
-                equipment.AssignRental(ownerId);
-                _equipmentRepository.Update(equipment);
-                Console.WriteLine($"[CompleteRental] Equipment rental assigned to owner {ownerId} for {months} month(s)");
-            }
-            else
+            if (!equipmentData.Value.hasRentalInfo)
             {
                 throw new InvalidOperationException("Equipment does not have rental information");
+            }
+
+            var rentalProcessed = await _equipmentFacade.ProcessEquipmentRental(equipmentId, ownerId, startDate, endDate);
+            if (rentalProcessed)
+            {
+                Console.WriteLine($"[CompleteRental] Equipment rental assigned to owner {ownerId} for {months} month(s)");
             }
 
             // 7. Save all changes
             await _unitOfWork.CompleteAsync();
 
-            // 8. Get owner details for response
-            var owner = await _ownerRepository.FindByIdAsync(ownerId);
+            // 8. Publish EquipmentRentalCompletedEvent for async communication
+            var rentalEvent = new EquipmentRentalCompletedEvent(
+                equipmentId,
+                equipmentData.Value.name,
+                equipmentData.Value.type,
+                ownerId,
+                providerId,
+                months,
+                monthlyFee,
+                totalAmount,
+                platformFee,
+                providerAmount,
+                startDate,
+                endDate,
+                session.Id
+            );
+            await _eventBus.PublishAsync(rentalEvent);
+            Console.WriteLine($"[Payments BC] Published EquipmentRentalCompletedEvent for equipment {equipmentId}");
 
-            // 9. Send notifications
-            if (owner != null && provider != null)
+            // 9. Get owner and provider details for response
+            var ownerName = await _profilesFacade.GetOwnerNameByOwnerId(ownerId);
+            var providerCompanyName = await _profilesFacade.FetchProviderCompanyName(providerId);
+
+            // 10. Send notifications
+            var providerUserId = await _profilesFacade.GetProviderUserIdByProviderId(providerId);
+
+            // Notify owner about successful rental
+            var ownerMessage = $"You have successfully rented {equipmentData.Value.name} for {months} month(s). Rental ends on {endDate:yyyy-MM-dd}.";
+            await _notificationFacade.CreateInAppNotification(ownerId, "🎉 Rental Completed", ownerMessage);
+
+            // Notify provider about payment received
+            if (providerUserId > 0)
             {
-                // Notify owner about successful rental
-                await _notificationGenerator.NotifyEquipmentAnomaly(
-                    ownerId,
-                    equipmentId,
-                    equipment.Name,
-                    "rental_completed",
-                    $"You have successfully rented {equipment.Name} for {months} month(s). Rental ends on {endDate:yyyy-MM-dd}.");
-
-                // Notify provider about payment received
-                await _notificationGenerator.NotifyPaymentReceived(
-                    provider.UserId,
-                    0, // No service request for rental
-                    providerAmount,
-                    $"Rental payment for {equipment.Name} ({months} months)");
-
-                Console.WriteLine($"[CompleteRental] Notifications sent to both parties");
+                var providerMessage = $"Payment of ${providerAmount:F2} received for rental: {equipmentData.Value.name} ({months} months)";
+                await _notificationFacade.CreateInAppNotification(providerUserId, "💰 Payment Received", providerMessage);
             }
+
+            Console.WriteLine($"[CompleteRental] Notifications sent to both parties");
 
             return Ok(new
             {
@@ -451,12 +490,12 @@ public class PaymentsController : ControllerBase
                 rental = new
                 {
                     equipmentId,
-                    equipmentName = equipment.Name,
-                    equipmentType = equipment.Type.ToString(),
+                    equipmentName = equipmentData.Value.name,
+                    equipmentType = equipmentData.Value.type,
                     renterId = ownerId,
-                    renterName = owner != null ? $"{owner.Name.FirstName} {owner.Name.LastName}" : "Unknown",
+                    renterName = ownerName != null ? $"{ownerName.Value.firstName} {ownerName.Value.lastName}" : "Unknown",
                     providerId,
-                    providerName = provider?.CompanyName ?? "Unknown",
+                    providerName = providerCompanyName ?? "Unknown",
                     rentalStartDate = startDate,
                     rentalEndDate = endDate,
                     durationMonths = months,

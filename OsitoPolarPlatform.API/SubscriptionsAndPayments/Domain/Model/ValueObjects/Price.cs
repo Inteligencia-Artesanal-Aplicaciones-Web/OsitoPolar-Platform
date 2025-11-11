@@ -12,6 +12,6 @@ public class Price
         Currency = currency ?? throw new ArgumentNullException(nameof(currency));
     }
 
-    public override bool Equals(object obj) => obj is Price other && Amount == other.Amount && Currency == other.Currency;
+    public override bool Equals(object? obj) => obj is Price other && Amount == other.Amount && Currency == other.Currency;
     public override int GetHashCode() => HashCode.Combine(Amount, Currency);
 }

@@ -29,7 +29,7 @@ public class ProfileCommandService(
             await profileRepository.AddAsync(profile);
             await unitOfWork.CompleteAsync();
             return profile;
-        } catch (Exception e)
+        } catch (Exception)
         {
             // Log error
             return null;

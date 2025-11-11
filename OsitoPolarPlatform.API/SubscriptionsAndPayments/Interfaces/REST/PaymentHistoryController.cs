@@ -3,9 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
+using OsitoPolarPlatform.API.WorkOrders.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.REST;
 
@@ -20,27 +21,24 @@ public class PaymentHistoryController : ControllerBase
 {
     private readonly IServicePaymentRepository _servicePaymentRepository;
     private readonly IPaymentRepository _paymentRepository;
-    private readonly ISubscriptionRepository _subscriptionRepository;
-    private readonly IOwnerRepository _ownerRepository;
-    private readonly IRenterProviderRepository _providerRepository;
-    private readonly IWorkOrderRepository _workOrderRepository;
+    private readonly ISubscriptionContextFacade _subscriptionFacade;
+    private readonly IProfilesContextFacade _profilesFacade;
+    private readonly IWorkOrderContextFacade _workOrderFacade;
     private readonly ILogger<PaymentHistoryController> _logger;
 
     public PaymentHistoryController(
         IServicePaymentRepository servicePaymentRepository,
         IPaymentRepository paymentRepository,
-        ISubscriptionRepository subscriptionRepository,
-        IOwnerRepository ownerRepository,
-        IRenterProviderRepository providerRepository,
-        IWorkOrderRepository workOrderRepository,
+        ISubscriptionContextFacade subscriptionFacade,
+        IProfilesContextFacade profilesFacade,
+        IWorkOrderContextFacade workOrderFacade,
         ILogger<PaymentHistoryController> logger)
     {
         _servicePaymentRepository = servicePaymentRepository;
         _paymentRepository = paymentRepository;
-        _subscriptionRepository = subscriptionRepository;
-        _ownerRepository = ownerRepository;
-        _providerRepository = providerRepository;
-        _workOrderRepository = workOrderRepository;
+        _subscriptionFacade = subscriptionFacade;
+        _profilesFacade = profilesFacade;
+        _workOrderFacade = workOrderFacade;
         _logger = logger;
     }
 
@@ -63,31 +61,31 @@ public class PaymentHistoryController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var owner = await _ownerRepository.FindByUserIdAsync(user.Id);
-            if (owner == null)
+            var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+            if (ownerId == 0)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only owners can view owner payment history" });
 
-            _logger.LogInformation("Retrieving payment history for owner {OwnerId}", owner.Id);
+            _logger.LogInformation("Retrieving payment history for owner {OwnerId}", ownerId);
 
             // Get subscription payments
             var subscriptionPayments = await _paymentRepository.FindByUserIdAsync(user.Id);
 
             // Get service payments
-            var servicePayments = await _servicePaymentRepository.FindByOwnerIdAsync(owner.Id);
+            var servicePayments = await _servicePaymentRepository.FindByOwnerIdAsync(ownerId);
 
             var paymentHistory = new List<object>();
 
             // Add subscription payments
             foreach (var payment in subscriptionPayments)
             {
-                var subscription = await _subscriptionRepository.FindByIdAsync(payment.SubscriptionId);
+                var subscriptionData = await _subscriptionFacade.GetSubscriptionDataById(payment.SubscriptionId);
 
                 paymentHistory.Add(new
                 {
                     paymentId = payment.Id,
                     type = "Subscription",
-                    description = $"Subscription: {subscription?.PlanName ?? "Plan"}",
+                    description = $"Subscription: {subscriptionData?.planName ?? "Plan"}",
                     totalAmount = payment.Amount.Amount,
                     platformFee = 0m,
                     providerAmount = 0m,
@@ -102,15 +100,15 @@ public class PaymentHistoryController : ControllerBase
             foreach (var payment in servicePayments)
             {
                 // Get work order details
-                var workOrder = await _workOrderRepository.FindByIdAsync(payment.WorkOrderId);
+                var workOrderData = await _workOrderFacade.GetWorkOrderData(payment.WorkOrderId);
 
                 paymentHistory.Add(new
                 {
                     paymentId = payment.Id,
                     type = "Service",
                     workOrderId = payment.WorkOrderId,
-                    workOrderNumber = workOrder?.WorkOrderNumber ?? "N/A",
-                    workOrderTitle = workOrder?.Title ?? "N/A",
+                    workOrderNumber = workOrderData?.workOrderNumber ?? "N/A",
+                    workOrderTitle = workOrderData?.title ?? "N/A",
                     serviceRequestId = payment.ServiceRequestId,
                     providerId = payment.ProviderId,
                     description = payment.Description,
@@ -129,10 +127,12 @@ public class PaymentHistoryController : ControllerBase
             var totalPaid = totalSubscriptionPayments + totalServicePayments;
             var totalPlatformFees = servicePayments.Sum(p => p.PlatformFee);
 
+            var ownerName = await _profilesFacade.GetOwnerNameByOwnerId(ownerId);
+
             return Ok(new
             {
-                ownerId = owner.Id,
-                ownerName = $"{owner.Name.FirstName} {owner.Name.LastName}",
+                ownerId,
+                ownerName = ownerName != null ? $"{ownerName.Value.firstName} {ownerName.Value.lastName}" : "Unknown",
                 totalPayments = subscriptionPayments.Count() + servicePayments.Count(),
                 totalPaid,
                 totalSubscriptionPayments,
@@ -167,31 +167,31 @@ public class PaymentHistoryController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var provider = await _providerRepository.FindByUserIdAsync(user.Id);
-            if (provider == null)
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(user.Id);
+            if (providerId == 0)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only providers can view provider payment history" });
 
-            _logger.LogInformation("Retrieving payment history for provider {ProviderId}", provider.Id);
+            _logger.LogInformation("Retrieving payment history for provider {ProviderId}", providerId);
 
             // Get subscription payments (their own subscription)
             var subscriptionPayments = await _paymentRepository.FindByUserIdAsync(user.Id);
 
             // Get service payments (money received from services)
-            var servicePayments = await _servicePaymentRepository.FindByProviderIdAsync(provider.Id);
+            var servicePayments = await _servicePaymentRepository.FindByProviderIdAsync(providerId);
 
             var paymentHistory = new List<object>();
 
             // Add subscription payments (expenses)
             foreach (var payment in subscriptionPayments)
             {
-                var subscription = await _subscriptionRepository.FindByIdAsync(payment.SubscriptionId);
+                var subscriptionData = await _subscriptionFacade.GetSubscriptionDataById(payment.SubscriptionId);
 
                 paymentHistory.Add(new
                 {
                     paymentId = payment.Id,
                     type = "Subscription",
-                    description = $"Subscription: {subscription?.PlanName ?? "Plan"}",
+                    description = $"Subscription: {subscriptionData?.planName ?? "Plan"}",
                     totalAmount = payment.Amount.Amount,
                     platformFee = 0m,
                     providerReceived = -payment.Amount.Amount, // Negative because it's an expense
@@ -206,15 +206,15 @@ public class PaymentHistoryController : ControllerBase
             foreach (var payment in servicePayments)
             {
                 // Get work order details
-                var workOrder = await _workOrderRepository.FindByIdAsync(payment.WorkOrderId);
+                var workOrderData = await _workOrderFacade.GetWorkOrderData(payment.WorkOrderId);
 
                 paymentHistory.Add(new
                 {
                     paymentId = payment.Id,
                     type = "Service",
                     workOrderId = payment.WorkOrderId,
-                    workOrderNumber = workOrder?.WorkOrderNumber ?? "N/A",
-                    workOrderTitle = workOrder?.Title ?? "N/A",
+                    workOrderNumber = workOrderData?.workOrderNumber ?? "N/A",
+                    workOrderTitle = workOrderData?.title ?? "N/A",
                     serviceRequestId = payment.ServiceRequestId,
                     ownerId = payment.OwnerId,
                     description = payment.Description,
@@ -233,11 +233,13 @@ public class PaymentHistoryController : ControllerBase
             var totalGrossRevenue = servicePayments.Sum(p => p.TotalAmount);
             var totalPlatformFees = servicePayments.Sum(p => p.PlatformFee);
 
+            var providerData = await _profilesFacade.GetProviderProfileForAuthByUserId(user.Id);
+
             return Ok(new
             {
-                providerId = provider.Id,
-                providerName = provider.CompanyName,
-                currentBalance = provider.Balance,
+                providerId,
+                providerName = providerData?.companyName ?? "Unknown",
+                currentBalance = providerData?.balance ?? 0m,
                 totalPayments = subscriptionPayments.Count() + servicePayments.Count(),
                 totalReceived, // What provider received from services (after platform fees)
                 totalGrossRevenue, // Total amount paid by customers
@@ -279,29 +281,29 @@ public class PaymentHistoryController : ControllerBase
                 return NotFound(new { message = "Payment not found" });
 
             // Verify user is either the owner or provider involved in this payment
-            var owner = await _ownerRepository.FindByUserIdAsync(user.Id);
-            var provider = await _providerRepository.FindByUserIdAsync(user.Id);
+            var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(user.Id);
 
-            var isOwner = owner != null && owner.Id == payment.OwnerId;
-            var isProvider = provider != null && provider.Id == payment.ProviderId;
+            var isOwner = ownerId > 0 && ownerId == payment.OwnerId;
+            var isProvider = providerId > 0 && providerId == payment.ProviderId;
 
             if (!isOwner && !isProvider)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Not authorized to view this payment" });
 
             // Get work order details
-            var workOrder = await _workOrderRepository.FindByIdAsync(payment.WorkOrderId);
+            var workOrderData = await _workOrderFacade.GetWorkOrderData(payment.WorkOrderId);
 
             return Ok(new
             {
                 paymentId = payment.Id,
-                workOrder = workOrder != null ? new
+                workOrder = workOrderData != null ? new
                 {
-                    id = workOrder.Id,
-                    workOrderNumber = workOrder.WorkOrderNumber,
-                    title = workOrder.Title,
-                    description = workOrder.Description,
-                    status = workOrder.Status.ToString()
+                    id = workOrderData.Value.id,
+                    workOrderNumber = workOrderData.Value.workOrderNumber,
+                    title = workOrderData.Value.title,
+                    description = "N/A", // Not available through facade
+                    status = workOrderData.Value.status
                 } : null,
                 serviceRequestId = payment.ServiceRequestId,
                 owner = new
