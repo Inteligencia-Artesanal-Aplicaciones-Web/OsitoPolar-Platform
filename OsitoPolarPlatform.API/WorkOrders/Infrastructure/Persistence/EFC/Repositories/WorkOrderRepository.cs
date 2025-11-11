@@ -1,5 +1,5 @@
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration;
-using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories; 
+using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;

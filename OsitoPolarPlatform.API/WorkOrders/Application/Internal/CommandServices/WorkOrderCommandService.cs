@@ -2,8 +2,9 @@ using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
+using OsitoPolarPlatform.API.Shared.Domain.Services;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Events;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.ValueObjects;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.ValueObjects;
 
@@ -14,11 +15,11 @@ namespace OsitoPolarPlatform.API.WorkOrders.Application.Internal.CommandServices
 /// </summary>
 public class WorkOrderCommandService(
     IWorkOrderRepository workOrderRepository,
-    IServiceRequestRepository serviceRequestRepository,
-    IUnitOfWork unitOfWork) : IWorkOrderCommandService
+    IUnitOfWork unitOfWork,
+    IEventBus eventBus) : IWorkOrderCommandService
 {
     public async Task<WorkOrder?> Handle(CreateWorkOrderCommand command)
-    {   
+    {
         if (string.IsNullOrWhiteSpace(command.Title))
             throw new ArgumentException("Title is required.");
         if (string.IsNullOrWhiteSpace(command.Description))
@@ -35,26 +36,18 @@ public class WorkOrderCommandService(
             throw new ArgumentException("Priority is required.");
 
         WorkOrder workOrder;
-        
+
         if (command.ServiceRequestId.HasValue)
         {
-            var serviceRequest = await serviceRequestRepository.FindByIdAsync(command.ServiceRequestId.Value);
-            if (serviceRequest == null)
-            {
-                throw new ArgumentException($"ServiceRequest with ID {command.ServiceRequestId.Value} not found.");
-            }
-            
-            var existingWorkOrder = await workOrderRepository.FindByServiceRequestIdAsync(serviceRequest.Id);
+            // Check if WorkOrder already exists for this ServiceRequest
+            var existingWorkOrder = await workOrderRepository.FindByServiceRequestIdAsync(command.ServiceRequestId.Value);
             if (existingWorkOrder != null)
             {
-                throw new InvalidOperationException($"A WorkOrder already exists for ServiceRequest ID {serviceRequest.Id}.");
+                throw new InvalidOperationException($"A WorkOrder already exists for ServiceRequest ID {command.ServiceRequestId.Value}.");
             }
-            
-            serviceRequest.UpdateStatus(EServiceRequestStatus.Accepted);
-            serviceRequestRepository.Update(serviceRequest); 
-            
+
             workOrder = new WorkOrder(
-                serviceRequest.Id, 
+                command.ServiceRequestId.Value,
                 command.Title,
                 command.Description,
                 command.IssueDetails,
@@ -81,8 +74,8 @@ public class WorkOrderCommandService(
             );
         }
 
-        await workOrderRepository.AddAsync(workOrder); 
-        await unitOfWork.CompleteAsync(); 
+        await workOrderRepository.AddAsync(workOrder);
+        await unitOfWork.CompleteAsync();
 
         return workOrder;
     }
@@ -93,43 +86,22 @@ public class WorkOrderCommandService(
         if (workOrder == null) return null;
 
         workOrder.UpdateStatus(command.NewStatus);
-        
+        workOrderRepository.Update(workOrder);
+        await unitOfWork.CompleteAsync();
+
+        // Publish event for status changes that should update ServiceRequest
         if (workOrder.ServiceRequestId.HasValue)
         {
-            var serviceRequest = await serviceRequestRepository.FindByIdAsync(workOrder.ServiceRequestId.Value);
-            if (serviceRequest != null)
-            {
-                EServiceRequestStatus newServiceRequestStatus;
-                switch (command.NewStatus)
-                {
-                    case EWorkOrderStatus.Created:
-                        break;
-                    case EWorkOrderStatus.Assigned:
-                        break;
-                    case EWorkOrderStatus.InProgress:
-                        newServiceRequestStatus = EServiceRequestStatus.InProgress;
-                        serviceRequest.UpdateStatus(newServiceRequestStatus);
-                        serviceRequestRepository.Update(serviceRequest); 
-                        break;
-                    case EWorkOrderStatus.OnHold:
-                        break;
-                    case EWorkOrderStatus.Completed:
-                    case EWorkOrderStatus.Resolved:
-                        newServiceRequestStatus = EServiceRequestStatus.Resolved;
-                        serviceRequest.UpdateStatus(newServiceRequestStatus);
-                        serviceRequestRepository.Update(serviceRequest); 
-                        break;
-                    case EWorkOrderStatus.Cancelled:
-                        newServiceRequestStatus = EServiceRequestStatus.Cancelled;
-                        serviceRequest.UpdateStatus(newServiceRequestStatus);
-                        serviceRequestRepository.Update(serviceRequest); 
-                        break;
-                }
-            }
-        }
+            var statusEvent = new WorkOrderStatusChangedEvent(
+                workOrder.Id,
+                workOrder.ServiceRequestId.Value,
+                command.NewStatus.ToString(),
+                null
+            );
 
-        workOrderRepository.Update(workOrder); 
-        await unitOfWork.CompleteAsync();
+            await eventBus.PublishAsync(statusEvent);
+            Console.WriteLine($"[WorkOrders BC] Published WorkOrderStatusChangedEvent for WO {workOrder.Id}, Status: {command.NewStatus}");
+        }
 
         return workOrder;
     }
@@ -151,23 +123,23 @@ public class WorkOrderCommandService(
         if (workOrder == null) return null;
 
         workOrder.AddResolutionDetails(command.ResolutionDetails, command.TechnicianNotes, command.Cost);
-        workOrderRepository.Update(workOrder); 
-        
-        if (workOrder.ServiceRequestId.HasValue)
+        workOrderRepository.Update(workOrder);
+        await unitOfWork.CompleteAsync();
+
+        // Publish event if WorkOrder is resolved
+        if (workOrder.ServiceRequestId.HasValue && workOrder.Status == EWorkOrderStatus.Resolved)
         {
-            var serviceRequest = await serviceRequestRepository.FindByIdAsync(workOrder.ServiceRequestId.Value);
-            if (serviceRequest != null)
-            {
-                if (workOrder.Status == EWorkOrderStatus.Resolved)
-                {
-                    EServiceRequestStatus newServiceRequestStatus = EServiceRequestStatus.Resolved;
-                    serviceRequest.UpdateStatus(newServiceRequestStatus);
-                    serviceRequestRepository.Update(serviceRequest); 
-                }
-            }
+            var statusEvent = new WorkOrderStatusChangedEvent(
+                workOrder.Id,
+                workOrder.ServiceRequestId.Value,
+                "Resolved",
+                command.ResolutionDetails
+            );
+
+            await eventBus.PublishAsync(statusEvent);
+            Console.WriteLine($"[WorkOrders BC] Published WorkOrderStatusChangedEvent for WO {workOrder.Id}, Status: Resolved");
         }
 
-        await unitOfWork.CompleteAsync();
         return workOrder;
     }
 }

@@ -8,8 +8,8 @@ using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST;
 
@@ -21,25 +21,30 @@ namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST;
 public class WorkOrdersController(
     IWorkOrderCommandService workOrderCommandService,
     IWorkOrderQueryService workOrderQueryService,
-    IOwnerRepository ownerRepository,
-    IEquipmentRepository equipmentRepository) : ControllerBase
+    IProfilesContextFacade profilesFacade,
+    IEquipmentContextFacade equipmentFacade) : ControllerBase
 {
     /// <summary>
-    /// Helper method to get the authenticated owner profile
+    /// Helper method to get the authenticated owner ID
     /// </summary>
-    /// <returns>The owner profile or error result</returns>
-    private async Task<(ActionResult? error, Profiles.Domain.Model.Aggregates.Owner? owner)> GetAuthenticatedOwner()
+    /// <returns>The owner ID or error result</returns>
+    private async Task<(ActionResult? error, int? ownerId)> GetAuthenticatedOwnerId()
     {
         var user = (User?)HttpContext.Items["User"];
         if (user == null)
             return (Unauthorized(new { message = "User not authenticated" }), null);
 
-        var ownerProfile = await ownerRepository.FindByUserIdAsync(user.Id);
-        if (ownerProfile == null)
+        var isOwner = await profilesFacade.IsUserAnOwner(user.Id);
+        if (!isOwner)
             return (StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "User is not an owner. Only owners can manage work orders." }), null);
 
-        return (null, ownerProfile);
+        var ownerId = await profilesFacade.FetchOwnerIdByUserId(user.Id);
+        if (ownerId == 0)
+            return (StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Owner profile not found." }), null);
+
+        return (null, ownerId);
     }
 
     /// <summary>
@@ -81,12 +86,11 @@ public class WorkOrdersController(
     public async Task<IActionResult> GetAllWorkOrders()
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
-        // Get all equipment owned by this owner
-        var ownerEquipment = await equipmentRepository.FindByOwnerIdAsync(ownerProfile!.Id);
-        var equipmentIds = ownerEquipment.Select(e => e.Id).ToHashSet();
+        // Get all equipment IDs owned by this owner
+        var equipmentIds = (await equipmentFacade.FetchEquipmentIdsByOwnerId(ownerId!.Value)).ToHashSet();
 
         // Get all work orders and filter by owner's equipment
         var getAllWorkOrdersQuery = new GetAllWorkOrdersQuery();
@@ -113,7 +117,7 @@ public class WorkOrdersController(
     public async Task<IActionResult> GetWorkOrderById(int workOrderId)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         var getWorkOrderByIdQuery = new GetWorkOrderByIdQuery(workOrderId);
@@ -124,8 +128,8 @@ public class WorkOrdersController(
         }
 
         // Verify ownership via equipment
-        var equipment = await equipmentRepository.FindByIdAsync(workOrder.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(workOrder.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to view this work order" });
 
@@ -151,7 +155,7 @@ public class WorkOrdersController(
     public async Task<IActionResult> UpdateWorkOrderStatus(int workOrderId, [FromBody] UpdateWorkOrderStatusResource resource)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         // Verify ownership
@@ -159,8 +163,8 @@ public class WorkOrdersController(
         if (workOrder == null)
             return NotFound();
 
-        var equipment = await equipmentRepository.FindByIdAsync(workOrder.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(workOrder.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to modify this work order" });
 
@@ -192,7 +196,7 @@ public class WorkOrdersController(
     public async Task<IActionResult> AddWorkOrderResolutionDetails(int workOrderId, [FromBody] AddWorkOrderResolutionDetailsCommand resource)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         // Verify ownership
@@ -200,8 +204,8 @@ public class WorkOrdersController(
         if (workOrder == null)
             return NotFound("Work Order not found.");
 
-        var equipment = await equipmentRepository.FindByIdAsync(workOrder.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(workOrder.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to modify this work order" });
 
