@@ -9,16 +9,14 @@ using OsitoPolarPlatform.API.IAM.Domain.Services;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Transform;
-using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
-using OsitoPolarPlatform.API.Notifications.Domain.Model.Commands;
-using OsitoPolarPlatform.API.Notifications.Domain.Model.ValueObjects;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
 using OsitoPolarPlatform.API.Profiles.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.Profiles.Domain.Model.Commands;
 using OsitoPolarPlatform.API.Profiles.Domain.Model.ValueObjects;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
 using OsitoPolarPlatform.API.Profiles.Domain.Services;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
-using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
@@ -33,11 +31,10 @@ public class AuthenticationController(
     IRegistrationService registrationService,
     ITwoFactorService twoFactorService,
     IUserRepository userRepository,
-    IOwnerRepository ownerRepository,
-    IRenterProviderRepository renterProviderRepository,
-    ISubscriptionRepository subscriptionRepository,
+    IProfilesContextFacade profilesFacade,
+    ISubscriptionContextFacade subscriptionFacade,
     IUnitOfWork unitOfWork,
-    IEmailCommandService emailCommandService) : ControllerBase
+    INotificationContextFacade notificationFacade) : ControllerBase
 {
     private static string GenerateSecurePassword()
     {
@@ -141,9 +138,9 @@ public class AuthenticationController(
             var user = authenticatedUser.user;
             var token = authenticatedUser.token;
 
-            // Check if user is an Owner
-            var owner = await ownerRepository.FindByUserIdAsync(user.Id);
-            if (owner != null)
+            // Check if user is an Owner using Facade
+            var ownerProfile = await profilesFacade.GetOwnerProfileForAuthByUserId(user.Id);
+            if (ownerProfile.HasValue)
             {
                 return Ok(new
                 {
@@ -151,16 +148,16 @@ public class AuthenticationController(
                     username = user.Username,
                     token,
                     userType = "Owner",
-                    profileId = owner.Id,
-                    balance = owner.Balance,
-                    planId = owner.PlanId,
-                    maxUnits = owner.MaxUnits
+                    profileId = ownerProfile.Value.ownerId,
+                    balance = ownerProfile.Value.balance,
+                    planId = ownerProfile.Value.planId,
+                    maxUnits = ownerProfile.Value.maxUnits
                 });
             }
 
-            // Check if user is a Provider
-            var provider = await renterProviderRepository.FindByUserIdAsync(user.Id);
-            if (provider != null)
+            // Check if user is a Provider using Facade
+            var providerProfile = await profilesFacade.GetProviderProfileForAuthByUserId(user.Id);
+            if (providerProfile.HasValue)
             {
                 return Ok(new
                 {
@@ -168,11 +165,11 @@ public class AuthenticationController(
                     username = user.Username,
                     token,
                     userType = "Provider",
-                    profileId = provider.Id,
-                    balance = provider.Balance,
-                    planId = provider.PlanId,
-                    maxClients = provider.MaxClients,
-                    companyName = provider.CompanyName
+                    profileId = providerProfile.Value.providerId,
+                    balance = providerProfile.Value.balance,
+                    planId = providerProfile.Value.planId,
+                    maxClients = providerProfile.Value.maxClients,
+                    companyName = providerProfile.Value.companyName
                 });
             }
 
@@ -210,9 +207,9 @@ public class AuthenticationController(
     {
         try
         {
-            // Get plan details
-            var plan = await subscriptionRepository.FindByIdAsync(request.PlanId);
-            if (plan == null)
+            // Get plan details using Facade
+            var planData = await subscriptionFacade.GetSubscriptionDataById(request.PlanId);
+            if (!planData.HasValue)
                 return BadRequest(new { message = "Invalid plan ID" });
 
             // Validate userType matches plan type
@@ -238,10 +235,10 @@ public class AuthenticationController(
                             Currency = "usd",
                             ProductData = new Stripe.Checkout.SessionLineItemPriceDataProductDataOptions
                             {
-                                Name = plan.PlanName,
-                                Description = $"OsitoPolar {request.UserType} Plan - {plan.PlanName}"
+                                Name = planData.Value.planName,
+                                Description = $"OsitoPolar {request.UserType} Plan - {planData.Value.planName}"
                             },
-                            UnitAmount = (long)(plan.Price.Amount * 100), // Convert to cents
+                            UnitAmount = (long)(planData.Value.price * 100), // Convert to cents
                         },
                         Quantity = 1
                     }
@@ -264,8 +261,8 @@ public class AuthenticationController(
             {
                 sessionId = session.Id,
                 checkoutUrl = session.Url,
-                planName = plan.PlanName,
-                amount = plan.Price.Amount
+                planName = planData.Value.planName,
+                amount = planData.Value.price
             });
         }
         catch (Exception ex)
@@ -316,8 +313,8 @@ public class AuthenticationController(
             var userType = session.Metadata["userType"];
 
             // Get subscription plan to retrieve maxUnits/maxClients
-            var plan = await subscriptionRepository.FindByIdAsync(planId);
-            if (plan == null)
+            var planInfo = await subscriptionFacade.GetSubscriptionDataById(planId);
+            if (!planInfo.HasValue)
                 return BadRequest(new { message = "Invalid plan ID from session" });
 
             // Generate secure password
@@ -331,66 +328,49 @@ public class AuthenticationController(
             if (user == null)
                 return BadRequest(new { message = "Failed to create user" });
 
-            // Create profile based on userType
+            // Get subscription limits
+            var limits = await subscriptionFacade.GetSubscriptionLimits(planId);
+            var maxUnits = limits?.maxEquipment ?? 10;
+            var maxClients = limits?.maxClients ?? 50;
+
+            // Create profile based on userType using Facade
             if (userType == "Owner")
             {
-                var owner = new Owner(
-                    userId: user.Id,
-                    firstName: request.FirstName,
-                    lastName: request.LastName,
-                    email: request.Email,
-                    street: request.Street,
-                    number: request.Number,
-                    city: request.City,
-                    postalCode: request.PostalCode,
-                    country: request.Country,
-                    planId: planId,
-                    maxUnits: plan.MaxEquipment ?? 10 // Use plan's MaxEquipment or default to 10
-                );
-                await ownerRepository.AddAsync(owner);
+                await profilesFacade.CreateOwnerProfile(
+                    user.Id, request.FirstName, request.LastName, request.Email,
+                    request.Street, request.Number, request.City, request.PostalCode, request.Country,
+                    planId, maxUnits);
             }
             else
             {
-                var provider = new RenterProvider(
-                    userId: user.Id,
-                    companyName: request.CompanyName ?? "Company",
-                    contactFirstName: request.FirstName,
-                    contactLastName: request.LastName,
-                    email: request.Email,
-                    street: request.Street,
-                    number: request.Number,
-                    city: request.City,
-                    postalCode: request.PostalCode,
-                    country: request.Country,
-                    planId: planId,
-                    maxClients: plan.MaxClients ?? 50, // Use plan's MaxClients or default to 50
-                    taxId: request.TaxId
-                );
-                await renterProviderRepository.AddAsync(provider);
+                await profilesFacade.CreateProviderProfile(
+                    user.Id, request.CompanyName ?? "Company", request.FirstName, request.LastName, request.Email,
+                    request.Street, request.Number, request.City, request.PostalCode, request.Country,
+                    planId, maxClients, request.TaxId);
             }
 
             // Save all changes to database
             await unitOfWork.CompleteAsync();
 
-            // Send welcome email with credentials
+            // Send welcome email with credentials using Facade
             try
             {
                 var loginUrl = $"{Request.Scheme}://{Request.Host}/sign-in";
+                var emailSubject = "Welcome to OsitoPolar - Your Credentials";
+                var emailBody = $@"
+                    <h2>Welcome to OsitoPolar!</h2>
+                    <p>Hello {request.FirstName} {request.LastName},</p>
+                    <p>Your account has been created successfully. Here are your credentials:</p>
+                    <ul>
+                        <li><strong>Email:</strong> {request.Email}</li>
+                        <li><strong>Temporary Password:</strong> {generatedPassword}</li>
+                    </ul>
+                    <p>Please login at: <a href='{loginUrl}'>{loginUrl}</a></p>
+                    <p>For security reasons, please change your password after your first login.</p>
+                    <p>Best regards,<br/>OsitoPolar Team</p>
+                ";
 
-                var emailCommand = new SendEmailCommand
-                {
-                    To = request.Email,
-                    ToName = $"{request.FirstName} {request.LastName}",
-                    Template = EmailTemplate.CredentialDelivery,
-                    TemplateData = new Dictionary<string, object>
-                    {
-                        { "email", request.Email },
-                        { "temporaryPassword", generatedPassword },
-                        { "loginUrl", loginUrl }
-                    }
-                };
-
-                await emailCommandService.SendTemplatedEmailAsync(emailCommand);
+                await notificationFacade.SendEmailNotification(request.Email, emailSubject, emailBody);
             }
             catch (Exception emailEx)
             {
@@ -478,8 +458,8 @@ public class AuthenticationController(
             var token = authenticatedUser.token;
 
             // Check if user is an Owner
-            var owner = await ownerRepository.FindByUserIdAsync(user.Id);
-            if (owner != null)
+            var ownerData = await profilesFacade.GetOwnerProfileForAuthByUserId(user.Id);
+            if (ownerData != null)
             {
                 return Ok(new
                 {
@@ -487,16 +467,16 @@ public class AuthenticationController(
                     username = user.Username,
                     token,
                     userType = "Owner",
-                    profileId = owner.Id,
-                    balance = owner.Balance,
-                    planId = owner.PlanId,
-                    maxUnits = owner.MaxUnits
+                    profileId = ownerData.Value.ownerId,
+                    balance = ownerData.Value.balance,
+                    planId = ownerData.Value.planId,
+                    maxUnits = ownerData.Value.maxUnits
                 });
             }
 
             // Check if user is a Provider
-            var provider = await renterProviderRepository.FindByUserIdAsync(user.Id);
-            if (provider != null)
+            var providerData = await profilesFacade.GetProviderProfileForAuthByUserId(user.Id);
+            if (providerData != null)
             {
                 return Ok(new
                 {
@@ -504,11 +484,11 @@ public class AuthenticationController(
                     username = user.Username,
                     token,
                     userType = "Provider",
-                    profileId = provider.Id,
-                    balance = provider.Balance,
-                    planId = provider.PlanId,
-                    maxClients = provider.MaxClients,
-                    companyName = provider.CompanyName
+                    profileId = providerData.Value.providerId,
+                    balance = providerData.Value.balance,
+                    planId = providerData.Value.planId,
+                    maxClients = providerData.Value.maxClients,
+                    companyName = providerData.Value.companyName
                 });
             }
 
