@@ -8,7 +8,7 @@ using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST.Transform;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST;
 
@@ -24,37 +24,39 @@ public class EquipmentsController : ControllerBase
 {
     private readonly IEquipmentCommandService _equipmentCommandService;
     private readonly IEquipmentQueryService _equipmentQueryService;
-    private readonly IOwnerRepository _ownerRepository;
-    private readonly IRenterProviderRepository _providerRepository;
+    private readonly IProfilesContextFacade _profilesFacade;
 
     public EquipmentsController(
         IEquipmentCommandService equipmentCommandService,
         IEquipmentQueryService equipmentQueryService,
-        IOwnerRepository ownerRepository,
-        IRenterProviderRepository providerRepository)
+        IProfilesContextFacade profilesFacade)
     {
         _equipmentCommandService = equipmentCommandService;
         _equipmentQueryService = equipmentQueryService;
-        _ownerRepository = ownerRepository;
-        _providerRepository = providerRepository;
+        _profilesFacade = profilesFacade;
     }
 
     /// <summary>
-    /// Helper method to get the authenticated owner profile
+    /// Helper method to get the authenticated owner ID
     /// </summary>
-    /// <returns>The owner profile or error result</returns>
-    private async Task<(ActionResult? error, Profiles.Domain.Model.Aggregates.Owner? owner)> GetAuthenticatedOwner()
+    /// <returns>The owner ID or error result</returns>
+    private async Task<(ActionResult? error, int? ownerId)> GetAuthenticatedOwnerId()
     {
         var user = (User?)HttpContext.Items["User"];
         if (user == null)
             return (Unauthorized(new { message = "User not authenticated" }), null);
 
-        var ownerProfile = await _ownerRepository.FindByUserIdAsync(user.Id);
-        if (ownerProfile == null)
+        var isOwner = await _profilesFacade.IsUserAnOwner(user.Id);
+        if (!isOwner)
             return (StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "User is not an owner. Only owners can manage equipment." }), null);
 
-        return (null, ownerProfile);
+        var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+        if (ownerId == 0)
+            return (StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Owner profile not found." }), null);
+
+        return (null, ownerId);
     }
 
     /// <summary>
@@ -69,14 +71,22 @@ public class EquipmentsController : ControllerBase
             return (Unauthorized(new { message = "User not authenticated" }), null, null);
 
         // Check if user is an Owner
-        var ownerProfile = await _ownerRepository.FindByUserIdAsync(user.Id);
-        if (ownerProfile != null)
-            return (null, ownerProfile.Id, "Owner");
+        var isOwner = await _profilesFacade.IsUserAnOwner(user.Id);
+        if (isOwner)
+        {
+            var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+            if (ownerId != 0)
+                return (null, ownerId, "Owner");
+        }
 
         // Check if user is a Provider
-        var providerProfile = await _providerRepository.FindByUserIdAsync(user.Id);
-        if (providerProfile != null)
-            return (null, providerProfile.Id, "Provider");
+        var isProvider = await _profilesFacade.IsUserAProvider(user.Id);
+        if (isProvider)
+        {
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(user.Id);
+            if (providerId != 0)
+                return (null, providerId, "Provider");
+        }
 
         return (StatusCode(StatusCodes.Status403Forbidden,
             new { message = "User must be an owner or provider to manage equipment." }), null, null);
@@ -225,7 +235,7 @@ public class EquipmentsController : ControllerBase
             return BadRequest(ModelState);
 
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         var equipment = await _equipmentQueryService.Handle(new GetEquipmentByIdQuery(equipmentId));
@@ -233,7 +243,7 @@ public class EquipmentsController : ControllerBase
             return NotFound($"Equipment with ID {equipmentId} not found");
 
         // Check ownership
-        if (equipment.OwnerId != ownerProfile!.Id)
+        if (equipment.OwnerId != ownerId!.Value)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to modify this equipment" });
 
@@ -336,7 +346,7 @@ public class EquipmentsController : ControllerBase
     public async Task<ActionResult> DeleteEquipment(int equipmentId)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         // Check if equipment exists and belongs to owner
@@ -345,7 +355,7 @@ public class EquipmentsController : ControllerBase
             return NotFound($"Equipment with ID {equipmentId} not found");
 
         // Check ownership
-        if (equipment.OwnerId != ownerProfile!.Id)
+        if (equipment.OwnerId != ownerId!.Value)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to delete this equipment" });
 
@@ -388,7 +398,7 @@ public class EquipmentsController : ControllerBase
             return BadRequest(ModelState);
 
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         var equipment = await _equipmentQueryService.Handle(new GetEquipmentByIdQuery(equipmentId));
@@ -396,7 +406,7 @@ public class EquipmentsController : ControllerBase
             return NotFound($"Equipment with ID {equipmentId} not found");
 
         // Check ownership
-        if (equipment.OwnerId != ownerProfile!.Id)
+        if (equipment.OwnerId != ownerId!.Value)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to create readings for this equipment" });
 
@@ -474,24 +484,29 @@ public class EquipmentsController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var providerProfile = await _providerRepository.FindByUserIdAsync(user.Id);
-            if (providerProfile == null)
+            var isProvider = await _profilesFacade.IsUserAProvider(user.Id);
+            if (!isProvider)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only providers can publish equipment for rent" });
+
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(user.Id);
+            if (providerId == 0)
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Provider profile not found" });
 
             // Verify equipment exists and belongs to provider
             var equipment = await _equipmentQueryService.Handle(new GetEquipmentByIdQuery(equipmentId));
             if (equipment == null)
                 return NotFound(new { message = "Equipment not found" });
 
-            if (equipment.OwnerId != providerProfile.Id || equipment.OwnerType != "Provider")
+            if (equipment.OwnerId != providerId || equipment.OwnerType != "Provider")
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "You can only publish your own equipment" });
 
             // Publish equipment
             var command = new PublishEquipmentForRentCommand(
                 equipmentId,
-                providerProfile.Id,
+                providerId,
                 resource.StartDate,
                 resource.EndDate,
                 resource.MonthlyFee
@@ -542,22 +557,27 @@ public class EquipmentsController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var providerProfile = await _providerRepository.FindByUserIdAsync(user.Id);
-            if (providerProfile == null)
+            var isProvider = await _profilesFacade.IsUserAProvider(user.Id);
+            if (!isProvider)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only providers can unpublish equipment" });
+
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(user.Id);
+            if (providerId == 0)
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Provider profile not found" });
 
             // Verify equipment exists and belongs to provider
             var equipment = await _equipmentQueryService.Handle(new GetEquipmentByIdQuery(equipmentId));
             if (equipment == null)
                 return NotFound(new { message = "Equipment not found" });
 
-            if (equipment.OwnerId != providerProfile.Id)
+            if (equipment.OwnerId != providerId)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "You can only unpublish your own equipment" });
 
             // Unpublish equipment
-            var command = new UnpublishEquipmentFromRentCommand(equipmentId, providerProfile.Id);
+            var command = new UnpublishEquipmentFromRentCommand(equipmentId, providerId);
             var result = await _equipmentCommandService.Handle(command);
 
             if (result == null)
