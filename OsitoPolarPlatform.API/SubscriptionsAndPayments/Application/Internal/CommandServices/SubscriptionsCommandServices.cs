@@ -7,8 +7,7 @@ using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.Internal.CommandServices;
 
 public class SubscriptionCommandService(
-    ISubscriptionRepository subscriptionRepository,
-    IUnitOfWork unitOfWork) : ISubscriptionCommandService
+    ISubscriptionRepository subscriptionRepository) : ISubscriptionCommandService
 {
     public async Task<Subscription?> Handle(UpgradePlanCommand command)
     {

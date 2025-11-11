@@ -3,37 +3,37 @@ using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Services;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
-using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Events;
+using OsitoPolarPlatform.API.Shared.Domain.Services;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Application.Internal.CommandServices;
 
 public class ServiceRequestCommandService : IServiceRequestCommandService
 {
     private readonly IServiceRequestRepository serviceRequestRepository;
-    private readonly IWorkOrderRepository workOrderRepository;
     private readonly IUnitOfWork unitOfWork;
-    private readonly NotificationGeneratorService notificationGenerator;
-    private readonly IRenterProviderRepository providerRepository;
-    private readonly IEquipmentRepository equipmentRepository;
+    private readonly IEventBus eventBus;
+    private readonly INotificationContextFacade notificationFacade;
+    private readonly IProfilesContextFacade profilesFacade;
+    private readonly IEquipmentContextFacade equipmentFacade;
 
     public ServiceRequestCommandService(
         IServiceRequestRepository serviceRequestRepository,
-        IWorkOrderRepository workOrderRepository,
         IUnitOfWork unitOfWork,
-        NotificationGeneratorService notificationGenerator,
-        IRenterProviderRepository providerRepository,
-        IEquipmentRepository equipmentRepository)
+        IEventBus eventBus,
+        INotificationContextFacade notificationFacade,
+        IProfilesContextFacade profilesFacade,
+        IEquipmentContextFacade equipmentFacade)
     {
         this.serviceRequestRepository = serviceRequestRepository;
-        this.workOrderRepository = workOrderRepository;
         this.unitOfWork = unitOfWork;
-        this.notificationGenerator = notificationGenerator;
-        this.providerRepository = providerRepository;
-        this.equipmentRepository = equipmentRepository;
+        this.eventBus = eventBus;
+        this.notificationFacade = notificationFacade;
+        this.profilesFacade = profilesFacade;
+        this.equipmentFacade = equipmentFacade;
     }
     public async Task<ServiceRequest?> Handle(CreateServiceRequestCommand command)
     {
@@ -95,26 +95,28 @@ public class ServiceRequestCommandService : IServiceRequestCommandService
         if (serviceRequest == null) return null;
 
         serviceRequest.AssignTechnician(command.TechnicianId);
-        serviceRequestRepository.Update(serviceRequest); 
+        serviceRequestRepository.Update(serviceRequest);
+        await unitOfWork.CompleteAsync();
 
-        var workOrder = new WorkOrder(
+        // Publish domain event instead of creating WorkOrder directly
+        // This maintains separation between ServiceRequests and WorkOrders bounded contexts
+        var technicianAssignedEvent = new TechnicianAssignedToServiceRequestEvent(
             serviceRequest.Id,
+            command.TechnicianId,
+            serviceRequest.EquipmentId,
             serviceRequest.Title,
             serviceRequest.Description,
             serviceRequest.IssueDetails,
-           // command.ClientId,
-           // command.CompanyId,
-            serviceRequest.EquipmentId,
             serviceRequest.ServiceType,
             serviceRequest.Priority,
             serviceRequest.ScheduledDate,
             serviceRequest.TimeSlot,
             serviceRequest.ServiceAddress
         );
-        
-        workOrder.AssignTechnician(command.TechnicianId);
-        await workOrderRepository.AddAsync(workOrder);
-        await unitOfWork.CompleteAsync(); 
+
+        await eventBus.PublishAsync(technicianAssignedEvent);
+
+        Console.WriteLine($"[ServiceRequests BC] Published TechnicianAssignedToServiceRequestEvent for SR {serviceRequest.Id}");
 
         return serviceRequest;
     }
@@ -125,16 +127,11 @@ public class ServiceRequestCommandService : IServiceRequestCommandService
         if (serviceRequest == null) return null;
 
         serviceRequest.AddCustomerFeedback(command.Rating);
-
-        var workOrder = await workOrderRepository.FindByServiceRequestIdAsync(serviceRequest.Id);
-        if (workOrder != null)
-        {
-            workOrder.SetCustomerFeedbackRating(command.Rating);
-            workOrderRepository.Update(workOrder); 
-        }
-
-        serviceRequestRepository.Update(serviceRequest); 
+        serviceRequestRepository.Update(serviceRequest);
         await unitOfWork.CompleteAsync();
+
+        // NOTE: Feedback update for WorkOrder is now handled by WorkOrder BC directly
+        // No cross-BC coupling needed here
 
         return serviceRequest;
     }
@@ -181,19 +178,17 @@ public class ServiceRequestCommandService : IServiceRequestCommandService
             // Generate notification for owner
             try
             {
-                var provider = await providerRepository.FindByIdAsync(command.ProviderId);
-                var equipment = await equipmentRepository.FindByIdAsync(serviceRequest.EquipmentId);
+                var providerCompanyName = await profilesFacade.FetchProviderCompanyName(command.ProviderId);
+                var equipmentExists = await equipmentFacade.EquipmentExists(serviceRequest.EquipmentId);
 
-                if (provider != null && equipment != null)
+                if (!string.IsNullOrEmpty(providerCompanyName) && equipmentExists)
                 {
-                    // Get owner ID from equipment
-                    // Note: Equipment needs to have OwnerId property
-                    // For now, using ClientId from ServiceRequest as a workaround
-                    await notificationGenerator.NotifyServiceRequestAccepted(
+                    // Create in-app notification
+                    var message = $"{providerCompanyName} has accepted your service request: {serviceRequest.Title}";
+                    await notificationFacade.CreateInAppNotification(
                         serviceRequest.ClientId,
-                        serviceRequest.Id,
-                        provider.CompanyName,
-                        serviceRequest.Title
+                        "✅ Service Request Accepted",
+                        message
                     );
                 }
             }

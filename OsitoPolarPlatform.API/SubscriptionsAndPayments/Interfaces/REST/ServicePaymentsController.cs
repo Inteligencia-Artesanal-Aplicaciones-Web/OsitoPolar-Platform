@@ -3,14 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.WorkOrders.Interfaces.ACL;
+using OsitoPolarPlatform.API.ServiceRequests.Interfaces.ACL;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
-using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
 using Stripe;
 using Stripe.Checkout;
 
@@ -25,35 +25,32 @@ namespace OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.REST;
 [SwaggerTag("Service Payments (Owner → Provider)")]
 public class ServicePaymentsController : ControllerBase
 {
-    private readonly IWorkOrderRepository _workOrderRepository;
-    private readonly IServiceRequestRepository _serviceRequestRepository;
-    private readonly IOwnerRepository _ownerRepository;
-    private readonly IRenterProviderRepository _providerRepository;
+    private readonly IWorkOrderContextFacade _workOrderFacade;
+    private readonly IServiceRequestContextFacade _serviceRequestFacade;
+    private readonly IProfilesContextFacade _profilesFacade;
     private readonly IServicePaymentRepository _servicePaymentRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly NotificationGeneratorService _notificationGenerator;
+    private readonly INotificationContextFacade _notificationFacade;
     private readonly ILogger<ServicePaymentsController> _logger;
 
     // Platform commission percentage
     private const decimal PLATFORM_FEE_PERCENTAGE = 15.0m; // 15%
 
     public ServicePaymentsController(
-        IWorkOrderRepository workOrderRepository,
-        IServiceRequestRepository serviceRequestRepository,
-        IOwnerRepository ownerRepository,
-        IRenterProviderRepository providerRepository,
+        IWorkOrderContextFacade workOrderFacade,
+        IServiceRequestContextFacade serviceRequestFacade,
+        IProfilesContextFacade profilesFacade,
         IServicePaymentRepository servicePaymentRepository,
         IUnitOfWork unitOfWork,
-        NotificationGeneratorService notificationGenerator,
+        INotificationContextFacade notificationFacade,
         ILogger<ServicePaymentsController> logger)
     {
-        _workOrderRepository = workOrderRepository;
-        _serviceRequestRepository = serviceRequestRepository;
-        _ownerRepository = ownerRepository;
-        _providerRepository = providerRepository;
+        _workOrderFacade = workOrderFacade;
+        _serviceRequestFacade = serviceRequestFacade;
+        _profilesFacade = profilesFacade;
         _servicePaymentRepository = servicePaymentRepository;
         _unitOfWork = unitOfWork;
-        _notificationGenerator = notificationGenerator;
+        _notificationFacade = notificationFacade;
         _logger = logger;
     }
 
@@ -79,43 +76,43 @@ public class ServicePaymentsController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var ownerProfile = await _ownerRepository.FindByUserIdAsync(user.Id);
-            if (ownerProfile == null)
+            var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+            if (ownerId == 0)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only owners can pay for services" });
 
             _logger.LogInformation("Owner {OwnerId} creating payment for work order {WorkOrderId}",
-                ownerProfile.Id, resource.WorkOrderId);
+                ownerId, resource.WorkOrderId);
 
             // Get work order
-            var workOrder = await _workOrderRepository.FindByIdAsync(resource.WorkOrderId);
-            if (workOrder == null)
+            var workOrderData = await _workOrderFacade.GetWorkOrderData(resource.WorkOrderId);
+            if (workOrderData == null)
                 return NotFound(new { message = "Work order not found" });
 
             // Verify work order is resolved and has a cost
-            if (workOrder.Status != WorkOrders.Domain.Model.ValueObjects.EWorkOrderStatus.Resolved)
+            if (workOrderData.Value.status != "Resolved")
                 return BadRequest(new { message = "Work order must be resolved before payment" });
 
-            if (!workOrder.Cost.HasValue || workOrder.Cost.Value <= 0)
+            if (!workOrderData.Value.cost.HasValue || workOrderData.Value.cost.Value <= 0)
                 return BadRequest(new { message = "Work order must have a valid cost" });
 
             // Get service request
-            var serviceRequest = await _serviceRequestRepository.FindByIdAsync(workOrder.ServiceRequestId!.Value);
-            if (serviceRequest == null)
+            var serviceRequestData = await _serviceRequestFacade.GetServiceRequestData(workOrderData.Value.serviceRequestId!.Value);
+            if (serviceRequestData == null)
                 return NotFound(new { message = "Service request not found" });
 
             // Verify owner owns this service request
-            if (serviceRequest.ClientId != ownerProfile.Id)
+            if (serviceRequestData.Value.clientId != ownerId)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "You can only pay for your own service requests" });
 
-            // Get provider
-            var provider = await _providerRepository.FindByIdAsync(serviceRequest.CompanyId);
-            if (provider == null)
+            // Get provider company name
+            var providerCompanyName = await _profilesFacade.FetchProviderCompanyName(serviceRequestData.Value.companyId);
+            if (string.IsNullOrEmpty(providerCompanyName))
                 return NotFound(new { message = "Provider not found" });
 
             // Calculate amounts
-            var totalAmount = workOrder.Cost.Value;
+            var totalAmount = workOrderData.Value.cost.Value;
             var platformFee = Math.Round(totalAmount * (PLATFORM_FEE_PERCENTAGE / 100), 2);
             var providerAmount = totalAmount - platformFee;
 
@@ -125,13 +122,13 @@ public class ServicePaymentsController : ControllerBase
 
             // Create ServicePayment record
             var servicePayment = new ServicePayment(
-                workOrder.Id,
-                serviceRequest.Id,
-                ownerProfile.Id,
-                provider.Id,
+                workOrderData.Value.id,
+                serviceRequestData.Value.id,
+                ownerId,
+                serviceRequestData.Value.companyId,
                 totalAmount,
                 PLATFORM_FEE_PERCENTAGE,
-                $"Service payment for Work Order #{workOrder.WorkOrderNumber}");
+                $"Service payment for Work Order #{workOrderData.Value.workOrderNumber}");
 
             await _servicePaymentRepository.AddAsync(servicePayment);
             await _unitOfWork.CompleteAsync();
@@ -154,8 +151,8 @@ public class ServicePaymentsController : ControllerBase
                             Currency = "usd",
                             ProductData = new SessionLineItemPriceDataProductDataOptions
                             {
-                                Name = $"Service Payment: {workOrder.Title}",
-                                Description = $"Work Order #{workOrder.WorkOrderNumber} - {provider.CompanyName}"
+                                Name = $"Service Payment: {workOrderData.Value.title}",
+                                Description = $"Work Order #{workOrderData.Value.workOrderNumber} - {providerCompanyName}"
                             },
                             UnitAmount = (long)(totalAmount * 100), // Convert to cents
                         },
@@ -169,10 +166,10 @@ public class ServicePaymentsController : ControllerBase
                 {
                     { "paymentType", "service" },
                     { "servicePaymentId", servicePayment.Id.ToString() },
-                    { "workOrderId", workOrder.Id.ToString() },
-                    { "serviceRequestId", serviceRequest.Id.ToString() },
-                    { "ownerId", ownerProfile.Id.ToString() },
-                    { "providerId", provider.Id.ToString() },
+                    { "workOrderId", workOrderData.Value.id.ToString() },
+                    { "serviceRequestId", serviceRequestData.Value.id.ToString() },
+                    { "ownerId", ownerId.ToString() },
+                    { "providerId", serviceRequestData.Value.companyId.ToString() },
                     { "totalAmount", totalAmount.ToString("F2") },
                     { "platformFee", platformFee.ToString("F2") },
                     { "providerAmount", providerAmount.ToString("F2") }
@@ -194,10 +191,10 @@ public class ServicePaymentsController : ControllerBase
                 platformFeePercentage = PLATFORM_FEE_PERCENTAGE,
                 workOrder = new
                 {
-                    id = workOrder.Id,
-                    workOrderNumber = workOrder.WorkOrderNumber,
-                    title = workOrder.Title,
-                    providerName = provider.CompanyName
+                    id = workOrderData.Value.id,
+                    workOrderNumber = workOrderData.Value.workOrderNumber,
+                    title = workOrderData.Value.title,
+                    providerName = providerCompanyName
                 }
             });
         }
@@ -272,31 +269,27 @@ public class ServicePaymentsController : ControllerBase
         }
 
         // Update provider balance
-        var provider = await _providerRepository.FindByIdAsync(providerId);
-        if (provider != null)
+        var balanceUpdated = await _profilesFacade.UpdateProviderBalance(providerId, providerAmount, $"Service payment for work order #{workOrderId}");
+        if (balanceUpdated)
         {
-            provider.RecordServiceRevenue(providerAmount, $"Service payment for work order #{workOrderId}");
-            _providerRepository.Update(provider);
-
-            _logger.LogInformation("Provider {ProviderId} balance updated. New balance: ${Balance}",
-                providerId, provider.Balance);
+            _logger.LogInformation("Provider {ProviderId} balance updated with ${Amount}", providerId, providerAmount);
         }
 
         // Save all changes
         await _unitOfWork.CompleteAsync();
 
         // Generate notification for provider
-        if (provider != null)
+        var workOrderData = await _workOrderFacade.GetWorkOrderData(workOrderId);
+        if (workOrderData != null)
         {
-            var workOrder = await _workOrderRepository.FindByIdAsync(workOrderId);
-            if (workOrder != null)
+            var providerUserId = await _profilesFacade.GetProviderUserIdByProviderId(providerId);
+            if (providerUserId > 0)
             {
-                await _notificationGenerator.NotifyPaymentReceived(
-                    provider.UserId,
-                    serviceRequestId,
-                    providerAmount,
-                    workOrder.Title
-                );
+                var message = $"Payment of ${providerAmount:F2} received for service: {workOrderData.Value.title}";
+                await _notificationFacade.CreateInAppNotification(
+                    providerUserId,
+                    "💰 Payment Received",
+                    message);
 
                 _logger.LogInformation("Payment notification sent to provider {ProviderId}", providerId);
             }

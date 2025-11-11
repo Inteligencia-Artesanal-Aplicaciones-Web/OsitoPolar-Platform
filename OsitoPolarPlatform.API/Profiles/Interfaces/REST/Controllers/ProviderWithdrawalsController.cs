@@ -5,7 +5,7 @@ using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
-using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.Profiles.Interfaces.REST.Controllers;
 
@@ -20,7 +20,7 @@ public class ProviderWithdrawalsController : ControllerBase
 {
     private readonly IRenterProviderRepository _providerRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly NotificationGeneratorService _notificationGenerator;
+    private readonly INotificationContextFacade _notificationFacade;
     private readonly ILogger<ProviderWithdrawalsController> _logger;
 
     // Minimum withdrawal amount
@@ -29,12 +29,12 @@ public class ProviderWithdrawalsController : ControllerBase
     public ProviderWithdrawalsController(
         IRenterProviderRepository providerRepository,
         IUnitOfWork unitOfWork,
-        NotificationGeneratorService notificationGenerator,
+        INotificationContextFacade notificationFacade,
         ILogger<ProviderWithdrawalsController> logger)
     {
         _providerRepository = providerRepository;
         _unitOfWork = unitOfWork;
-        _notificationGenerator = notificationGenerator;
+        _notificationFacade = notificationFacade;
         _logger = logger;
     }
 
@@ -97,12 +97,11 @@ public class ProviderWithdrawalsController : ControllerBase
                 "Withdrawal processed for provider {ProviderId}. Amount: ${Amount}, New balance: ${Balance}",
                 provider.Id, request.Amount, newBalance);
 
-            // Generate notification
-            await _notificationGenerator.NotifyPaymentReceived(
+            // Generate notification using Facade
+            await _notificationFacade.CreateInAppNotification(
                 provider.UserId,
-                0,
-                request.Amount,
-                $"Withdrawal of ${request.Amount} has been processed");
+                "💰 Withdrawal Processed",
+                $"Your withdrawal of ${request.Amount:F2} has been processed and will be sent to your account.");
 
             // In a real system, you would:
             // 1. Create a withdrawal record in a WithdrawalRequests table

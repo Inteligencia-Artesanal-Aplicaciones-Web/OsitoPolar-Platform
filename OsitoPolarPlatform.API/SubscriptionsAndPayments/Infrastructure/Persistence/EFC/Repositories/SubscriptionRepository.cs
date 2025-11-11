@@ -12,13 +12,13 @@ public class SubscriptionRepository : BaseRepository<Subscription>, ISubscriptio
     {
     }
 
-    public async Task<Subscription?> FindByUserIdAsync(int userId)
+    public Task<Subscription?> FindByUserIdAsync(int userId)
     {
         // For now, it returns null to the users that do not have an active subscription
         // This will allow the pay flow to work correctly
-        return null;
-        
-        
+        return Task.FromResult<Subscription?>(null);
+
+
         // return await Context.Set<Subscription>().FirstOrDefaultAsync(s => s.Id == 1);
     }
 }

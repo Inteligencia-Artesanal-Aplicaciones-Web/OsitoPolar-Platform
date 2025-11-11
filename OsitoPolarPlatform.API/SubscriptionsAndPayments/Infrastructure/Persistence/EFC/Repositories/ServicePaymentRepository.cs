@@ -12,7 +12,7 @@ public class ServicePaymentRepository : BaseRepository<ServicePayment>, IService
     {
     }
 
-    public async Task<ServicePayment?> FindByIdAsync(int id)
+    public new async Task<ServicePayment?> FindByIdAsync(int id)
     {
         return await Context.Set<ServicePayment>()
             .FirstOrDefaultAsync(sp => sp.Id == id);
@@ -40,12 +40,12 @@ public class ServicePaymentRepository : BaseRepository<ServicePayment>, IService
             .ToListAsync();
     }
 
-    public async Task AddAsync(ServicePayment servicePayment)
+    public new async Task AddAsync(ServicePayment servicePayment)
     {
         await Context.Set<ServicePayment>().AddAsync(servicePayment);
     }
 
-    public void Update(ServicePayment servicePayment)
+    public new void Update(ServicePayment servicePayment)
     {
         Context.Set<ServicePayment>().Update(servicePayment);
     }

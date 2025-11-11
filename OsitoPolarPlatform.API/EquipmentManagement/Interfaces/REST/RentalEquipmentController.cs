@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Queries;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Services;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 using Stripe.Checkout;
@@ -22,19 +22,16 @@ namespace OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST;
 public class RentalEquipmentController : ControllerBase
 {
     private readonly IEquipmentQueryService _equipmentQueryService;
-    private readonly IOwnerRepository _ownerRepository;
-    private readonly IRenterProviderRepository _providerRepository;
+    private readonly IProfilesContextFacade _profilesFacade;
     private readonly IConfiguration _configuration;
 
     public RentalEquipmentController(
         IEquipmentQueryService equipmentQueryService,
-        IOwnerRepository ownerRepository,
-        IRenterProviderRepository providerRepository,
+        IProfilesContextFacade profilesFacade,
         IConfiguration configuration)
     {
         _equipmentQueryService = equipmentQueryService;
-        _ownerRepository = ownerRepository;
-        _providerRepository = providerRepository;
+        _profilesFacade = profilesFacade;
         _configuration = configuration;
 
         // Initialize Stripe API key
@@ -129,8 +126,8 @@ public class RentalEquipmentController : ControllerBase
             if (equipment == null)
                 return NotFound(new { message = $"Equipment with ID {equipmentId} not found or not available for rent" });
 
-            // Get provider details
-            var provider = await _providerRepository.FindByIdAsync(equipment.RentalInfo!.ProviderId);
+            // Get provider details using Facade
+            var providerCompanyName = await _profilesFacade.FetchProviderCompanyName(equipment.RentalInfo!.ProviderId);
 
             var response = new
             {
@@ -144,7 +141,7 @@ public class RentalEquipmentController : ControllerBase
                 availableFrom = equipment.RentalInfo.StartDate,
                 availableUntil = equipment.RentalInfo.EndDate,
                 providerId = equipment.RentalInfo.ProviderId,
-                providerName = provider != null ? $"{provider.Name.FirstName} {provider.Name.LastName}" : "Unknown Provider",
+                providerName = !string.IsNullOrEmpty(providerCompanyName) ? providerCompanyName : "Unknown Provider",
                 location = new
                 {
                     name = equipment.Location.Name,
@@ -195,12 +192,12 @@ public class RentalEquipmentController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var ownerProfile = await _ownerRepository.FindByUserIdAsync(user.Id);
-            if (ownerProfile == null)
+            var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+            if (ownerId == 0)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only owners can rent equipment" });
 
-            Console.WriteLine($"[RentalRequest] Owner {ownerProfile.Id} requesting rental for equipment {resource.EquipmentId}, months: {resource.Months}");
+            Console.WriteLine($"[RentalRequest] Owner {ownerId} requesting rental for equipment {resource.EquipmentId}, months: {resource.Months}");
 
             // Verify equipment is available for rent
             var query = new GetRentalEquipmentByIdQuery(resource.EquipmentId);
@@ -247,7 +244,7 @@ public class RentalEquipmentController : ControllerBase
                 Metadata = new Dictionary<string, string>
                 {
                     { "equipmentId", resource.EquipmentId.ToString() },
-                    { "ownerId", ownerProfile.Id.ToString() },
+                    { "ownerId", ownerId.ToString() },
                     { "providerId", equipment.RentalInfo.ProviderId.ToString() },
                     { "months", resource.Months.ToString() },
                     { "monthlyFee", equipment.RentalInfo.MonthlyFee.ToString() }

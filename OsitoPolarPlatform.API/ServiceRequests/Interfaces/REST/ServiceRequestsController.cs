@@ -8,8 +8,8 @@ using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Commands;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST;
 /// <summary>
@@ -17,8 +17,8 @@ namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST;
 /// </summary>
 /// <param name="serviceRequestCommandService">The command service for handling service request commands.</param>
 /// <param name="serviceRequestQueryService">The query service for handling service request queries.</param>
-/// <param name="ownerRepository">Repository for owner data.</param>
-/// <param name="equipmentRepository">Repository for equipment data.</param>
+/// <param name="profilesFacade">Facade for accessing Profiles context.</param>
+/// <param name="equipmentFacade">Facade for accessing Equipment context.</param>
 ///
 [Authorize]
 [ApiController]
@@ -28,25 +28,30 @@ namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST;
 public class ServiceRequestsController(
     IServiceRequestCommandService serviceRequestCommandService,
     IServiceRequestQueryService serviceRequestQueryService,
-    IOwnerRepository ownerRepository,
-    IEquipmentRepository equipmentRepository) : ControllerBase
+    IProfilesContextFacade profilesFacade,
+    IEquipmentContextFacade equipmentFacade) : ControllerBase
 {
     /// <summary>
-    /// Helper method to get the authenticated owner profile
+    /// Helper method to get the authenticated owner ID
     /// </summary>
-    /// <returns>The owner profile or error result</returns>
-    private async Task<(ActionResult? error, Profiles.Domain.Model.Aggregates.Owner? owner)> GetAuthenticatedOwner()
+    /// <returns>The owner ID or error result</returns>
+    private async Task<(ActionResult? error, int? ownerId)> GetAuthenticatedOwnerId()
     {
         var user = (User?)HttpContext.Items["User"];
         if (user == null)
             return (Unauthorized(new { message = "User not authenticated" }), null);
 
-        var ownerProfile = await ownerRepository.FindByUserIdAsync(user.Id);
-        if (ownerProfile == null)
+        var isOwner = await profilesFacade.IsUserAnOwner(user.Id);
+        if (!isOwner)
             return (StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "User is not an owner. Only owners can manage service requests." }), null);
 
-        return (null, ownerProfile);
+        var ownerId = await profilesFacade.FetchOwnerIdByUserId(user.Id);
+        if (ownerId == 0)
+            return (StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Owner profile not found." }), null);
+
+        return (null, ownerId);
     }
 
     /// <summary>
@@ -67,15 +72,16 @@ public class ServiceRequestsController(
     public async Task<IActionResult> CreateServiceRequest([FromBody] CreateServiceRequestResource resource)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
-        // Verify equipment ownership
-        var equipment = await equipmentRepository.FindByIdAsync(resource.EquipmentId);
-        if (equipment == null)
+        // Verify equipment exists and ownership
+        var equipmentExists = await equipmentFacade.EquipmentExists(resource.EquipmentId);
+        if (!equipmentExists)
             return NotFound(new { message = "Equipment not found" });
 
-        if (equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(resource.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You can only create service requests for your own equipment" });
 
@@ -110,7 +116,7 @@ public class ServiceRequestsController(
     public async Task<IActionResult> UpdateServiceRequest([FromRoute] int serviceRequestId, [FromBody] UpdateServiceRequestResource resource)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         // Get service request and verify ownership
@@ -118,8 +124,8 @@ public class ServiceRequestsController(
         if (serviceRequest is null)
             return NotFound("Service Request not found");
 
-        var equipment = await equipmentRepository.FindByIdAsync(serviceRequest.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(serviceRequest.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to update this service request" });
 
@@ -145,12 +151,11 @@ public class ServiceRequestsController(
     public async Task<IActionResult> GetAllServiceRequests()
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
-        // Get all equipment owned by this owner
-        var ownerEquipment = await equipmentRepository.FindByOwnerIdAsync(ownerProfile!.Id);
-        var equipmentIds = ownerEquipment.Select(e => e.Id).ToHashSet();
+        // Get all equipment IDs owned by this owner
+        var equipmentIds = (await equipmentFacade.FetchEquipmentIdsByOwnerId(ownerId!.Value)).ToHashSet();
 
         // Get all service requests and filter by owner's equipment
         var getAllServiceRequestsQuery = new GetAllServiceRequestsQuery();
@@ -177,7 +182,7 @@ public class ServiceRequestsController(
     public async Task<IActionResult> GetServiceRequestById(int serviceRequestId)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         var getServiceRequestByIdQuery = new GetServiceRequestByIdQuery(serviceRequestId);
@@ -188,8 +193,8 @@ public class ServiceRequestsController(
         }
 
         // Verify ownership via equipment
-        var equipment = await equipmentRepository.FindByIdAsync(serviceRequest.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(serviceRequest.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to view this service request" });
 
@@ -216,7 +221,7 @@ public class ServiceRequestsController(
     public async Task<IActionResult> AssignTechnician(int serviceRequestId, [FromBody] AssignTechnicianToServiceRequestResource resource)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         // Verify ownership
@@ -224,8 +229,8 @@ public class ServiceRequestsController(
         if (serviceRequest == null)
             return NotFound();
 
-        var equipment = await equipmentRepository.FindByIdAsync(serviceRequest.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(serviceRequest.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to modify this service request" });
 
@@ -257,7 +262,7 @@ public class ServiceRequestsController(
     public async Task<IActionResult> AddCustomerFeedback(int serviceRequestId, [FromBody] AddCustomerFeedbackToServiceRequestResource resource)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         // Verify ownership
@@ -265,8 +270,8 @@ public class ServiceRequestsController(
         if (serviceRequest == null)
             return NotFound();
 
-        var equipment = await equipmentRepository.FindByIdAsync(serviceRequest.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(serviceRequest.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to add feedback to this service request" });
 
@@ -298,7 +303,7 @@ public class ServiceRequestsController(
     public async Task<IActionResult> UpdateServiceRequestStatus(int serviceRequestId, [FromBody] UpdateServiceRequestStatusResource resource)
     {
         // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         // Verify ownership
@@ -306,8 +311,8 @@ public class ServiceRequestsController(
         if (existingServiceRequest == null)
             return NotFound();
 
-        var equipment = await equipmentRepository.FindByIdAsync(existingServiceRequest.EquipmentId);
-        if (equipment == null || equipment.OwnerId != ownerProfile!.Id)
+        var isOwned = await equipmentFacade.IsEquipmentOwnedBy(existingServiceRequest.EquipmentId, ownerId!.Value);
+        if (!isOwned)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to update this service request" });
 

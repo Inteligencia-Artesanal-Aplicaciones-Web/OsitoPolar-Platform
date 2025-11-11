@@ -8,8 +8,8 @@ using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
 using OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST.Transform;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.ServiceRequests.Interfaces.REST;
 
@@ -25,19 +25,19 @@ public class ServiceRequestMarketplaceController : ControllerBase
 {
     private readonly IServiceRequestRepository _serviceRequestRepository;
     private readonly IServiceRequestCommandService _serviceRequestCommandService;
-    private readonly IRenterProviderRepository _providerRepository;
-    private readonly IEquipmentRepository _equipmentRepository;
+    private readonly IProfilesContextFacade _profilesFacade;
+    private readonly IEquipmentContextFacade _equipmentFacade;
 
     public ServiceRequestMarketplaceController(
         IServiceRequestRepository serviceRequestRepository,
         IServiceRequestCommandService serviceRequestCommandService,
-        IRenterProviderRepository providerRepository,
-        IEquipmentRepository equipmentRepository)
+        IProfilesContextFacade profilesFacade,
+        IEquipmentContextFacade equipmentFacade)
     {
         _serviceRequestRepository = serviceRequestRepository;
         _serviceRequestCommandService = serviceRequestCommandService;
-        _providerRepository = providerRepository;
-        _equipmentRepository = equipmentRepository;
+        _profilesFacade = profilesFacade;
+        _equipmentFacade = equipmentFacade;
     }
 
     /// <summary>
@@ -61,12 +61,12 @@ public class ServiceRequestMarketplaceController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var providerProfile = await _providerRepository.FindByUserIdAsync(user.Id);
-            if (providerProfile == null)
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(user.Id);
+            if (providerId == 0)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only Providers can access the marketplace" });
 
-            Console.WriteLine($"[Marketplace] Provider {providerProfile.Id} requesting marketplace");
+            Console.WriteLine($"[Marketplace] Provider {providerId} requesting marketplace");
 
             // Get all pending service requests
             var pendingRequests = await _serviceRequestRepository.FindByStatusAsync(EServiceRequestStatus.Pending);
@@ -75,7 +75,9 @@ public class ServiceRequestMarketplaceController : ControllerBase
             var enrichedRequests = new List<object>();
             foreach (var request in pendingRequests)
             {
-                var equipment = await _equipmentRepository.FindByIdAsync(request.EquipmentId);
+                // Equipment details simplified - use equipmentId to fetch full details separately if needed
+                var equipmentExists = await _equipmentFacade.EquipmentExists(request.EquipmentId);
+                object? equipment = equipmentExists ? new { id = request.EquipmentId } : null;
 
                 enrichedRequests.Add(new
                 {
@@ -94,21 +96,7 @@ public class ServiceRequestMarketplaceController : ControllerBase
                     timeSlot = request.TimeSlot,
                     serviceAddress = request.ServiceAddress,
                     equipmentId = request.EquipmentId,
-                    equipment = equipment != null ? new
-                    {
-                        id = equipment.Id,
-                        name = equipment.Name,
-                        type = equipment.Type.ToString(),
-                        model = equipment.Model,
-                        manufacturer = equipment.Manufacturer,
-                        location = new
-                        {
-                            name = equipment.Location.Name,
-                            address = equipment.Location.Address,
-                            latitude = equipment.Location.Coordinates.Latitude,
-                            longitude = equipment.Location.Coordinates.Longitude
-                        }
-                    } : null
+                    equipment = equipment // Simplified - contains only {id} - fetch full details separately if needed
                 });
             }
 
@@ -145,15 +133,15 @@ public class ServiceRequestMarketplaceController : ControllerBase
             if (user == null)
                 return Unauthorized(new { message = "User not authenticated" });
 
-            var providerProfile = await _providerRepository.FindByUserIdAsync(user.Id);
-            if (providerProfile == null)
+            var providerId = await _profilesFacade.FetchProviderIdByUserId(user.Id);
+            if (providerId == 0)
                 return StatusCode(StatusCodes.Status403Forbidden,
                     new { message = "Only Providers can accept service requests" });
 
-            Console.WriteLine($"[Accept] Provider {providerProfile.Id} attempting to accept service request {serviceRequestId}");
+            Console.WriteLine($"[Accept] Provider {providerId} attempting to accept service request {serviceRequestId}");
 
             // Try to accept the service request (atomic operation)
-            var command = new AcceptServiceRequestCommand(serviceRequestId, providerProfile.Id);
+            var command = new AcceptServiceRequestCommand(serviceRequestId, providerId);
             var serviceRequest = await _serviceRequestCommandService.Handle(command);
 
             if (serviceRequest == null)
@@ -166,7 +154,7 @@ public class ServiceRequestMarketplaceController : ControllerBase
                 });
             }
 
-            Console.WriteLine($"[Accept] Service request {serviceRequestId} successfully accepted by provider {providerProfile.Id}");
+            Console.WriteLine($"[Accept] Service request {serviceRequestId} successfully accepted by provider {providerId}");
 
             var resource = ServiceRequestResourceFromEntityAssembler.ToResourceFromEntity(serviceRequest);
             return Ok(new
