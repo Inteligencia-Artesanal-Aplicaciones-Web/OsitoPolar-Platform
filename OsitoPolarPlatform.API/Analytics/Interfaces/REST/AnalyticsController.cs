@@ -7,8 +7,8 @@ using OsitoPolarPlatform.API.Analytics.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.Analytics.Interfaces.REST.Transform;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.Analytics.Interfaces.REST;
 
@@ -24,35 +24,35 @@ namespace OsitoPolarPlatform.API.Analytics.Interfaces.REST;
 public class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsQueryService _analyticsQueryService;
-    private readonly IOwnerRepository _ownerRepository;
-    private readonly IEquipmentRepository _equipmentRepository;
+    private readonly IProfilesContextFacade _profilesFacade;
+    private readonly IEquipmentContextFacade _equipmentFacade;
 
     public AnalyticsController(
         IAnalyticsQueryService analyticsQueryService,
-        IOwnerRepository ownerRepository,
-        IEquipmentRepository equipmentRepository)
+        IProfilesContextFacade profilesFacade,
+        IEquipmentContextFacade equipmentFacade)
     {
         _analyticsQueryService = analyticsQueryService;
-        _ownerRepository = ownerRepository;
-        _equipmentRepository = equipmentRepository;
+        _profilesFacade = profilesFacade;
+        _equipmentFacade = equipmentFacade;
     }
 
     /// <summary>
-    /// Helper method to get the authenticated owner profile
+    /// Helper method to get the authenticated owner ID
     /// </summary>
-    /// <returns>The owner profile or error result</returns>
-    private async Task<(ActionResult? error, Profiles.Domain.Model.Aggregates.Owner? owner)> GetAuthenticatedOwner()
+    /// <returns>The owner ID or error result</returns>
+    private async Task<(ActionResult? error, int ownerId)> GetAuthenticatedOwnerId()
     {
         var user = (User?)HttpContext.Items["User"];
         if (user == null)
-            return (Unauthorized(new { message = "User not authenticated" }), null);
+            return (Unauthorized(new { message = "User not authenticated" }), 0);
 
-        var ownerProfile = await _ownerRepository.FindByUserIdAsync(user.Id);
-        if (ownerProfile == null)
+        var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+        if (ownerId == 0)
             return (StatusCode(StatusCodes.Status403Forbidden,
-                new { message = "User is not an owner. Only owners can view analytics." }), null);
+                new { message = "User is not an owner. Only owners can view analytics." }), 0);
 
-        return (null, ownerProfile);
+        return (null, ownerId);
     }
 
     /// <summary>
@@ -78,16 +78,17 @@ public class AnalyticsController : ControllerBase
         [FromQuery] int hours = 24,
         [FromQuery] int limit = 100)
     {
-        // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        // Get authenticated owner ID
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
-        // Verify equipment ownership
-        var equipment = await _equipmentRepository.FindByIdAsync(equipmentId);
-        if (equipment == null)
+        // Verify equipment ownership using Facade
+        var equipmentExists = await _equipmentFacade.EquipmentExists(equipmentId);
+        if (!equipmentExists)
             return NotFound(new { message = "Equipment not found" });
 
-        if (equipment.OwnerId != ownerProfile!.Id)
+        var isOwnedByUser = await _equipmentFacade.IsEquipmentOwnedBy(equipmentId, ownerId);
+        if (!isOwnedByUser)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to view analytics for this equipment" });
 
@@ -169,16 +170,17 @@ public class AnalyticsController : ControllerBase
         [FromQuery] string type = "daily-averages",  // daily-averages, weekly-trends
         [FromQuery] int days = 7)
     {
-        // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        // Get authenticated owner ID
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
-        // Verify equipment ownership
-        var equipment = await _equipmentRepository.FindByIdAsync(equipmentId);
-        if (equipment == null)
+        // Verify equipment ownership using Facade
+        var equipmentExists = await _equipmentFacade.EquipmentExists(equipmentId);
+        if (!equipmentExists)
             return NotFound(new { message = "Equipment not found" });
 
-        if (equipment.OwnerId != ownerProfile!.Id)
+        var isOwnedByUser = await _equipmentFacade.IsEquipmentOwnedBy(equipmentId, ownerId);
+        if (!isOwnedByUser)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to view analytics for this equipment" });
 
@@ -238,15 +240,14 @@ public class AnalyticsController : ControllerBase
         [FromQuery] string ids = "",
         [FromQuery] string type = "current")
     {
-        // Get authenticated owner
-        var (error, ownerProfile) = await GetAuthenticatedOwner();
+        // Get authenticated owner ID
+        var (error, ownerId) = await GetAuthenticatedOwnerId();
         if (error != null) return error;
 
         try
         {
-            // Get owner's equipment
-            var ownerEquipment = await _equipmentRepository.FindByOwnerIdAsync(ownerProfile!.Id);
-            var ownerEquipmentIds = ownerEquipment.Select(e => e.Id).ToHashSet();
+            // Get owner's equipment IDs
+            var ownerEquipmentIds = (await _equipmentFacade.FetchEquipmentIdsByOwnerId(ownerId)).ToHashSet();
 
             List<int> equipmentIds;
             if (string.IsNullOrWhiteSpace(ids))

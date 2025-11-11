@@ -19,7 +19,7 @@ namespace OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configura
 /// <summary>
 /// Application database context
 /// </summary>
-public class AppDbContext(DbContextOptions options) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     // Notifications
     public DbSet<NotificationLog> NotificationLogs { get; set; }

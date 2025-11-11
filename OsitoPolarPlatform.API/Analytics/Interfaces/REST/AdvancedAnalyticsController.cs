@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.Analytics.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.Analytics.Domain.Repositories;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 
@@ -22,17 +22,17 @@ namespace OsitoPolarPlatform.API.Analytics.Interfaces.REST;
 public class AdvancedAnalyticsController : ControllerBase
 {
     private readonly IAnalyticsRepository _analyticsRepository;
-    private readonly IEquipmentRepository _equipmentRepository;
-    private readonly IOwnerRepository _ownerRepository;
+    private readonly IEquipmentContextFacade _equipmentFacade;
+    private readonly IProfilesContextFacade _profilesFacade;
 
     public AdvancedAnalyticsController(
         IAnalyticsRepository analyticsRepository,
-        IEquipmentRepository equipmentRepository,
-        IOwnerRepository ownerRepository)
+        IEquipmentContextFacade equipmentFacade,
+        IProfilesContextFacade profilesFacade)
     {
         _analyticsRepository = analyticsRepository;
-        _equipmentRepository = equipmentRepository;
-        _ownerRepository = ownerRepository;
+        _equipmentFacade = equipmentFacade;
+        _profilesFacade = profilesFacade;
     }
 
     /// <summary>
@@ -44,20 +44,21 @@ public class AdvancedAnalyticsController : ControllerBase
         if (user == null)
             return (Unauthorized(new { message = "User not authenticated" }), 0);
 
-        var ownerProfile = await _ownerRepository.FindByUserIdAsync(user.Id);
-        if (ownerProfile == null)
+        var ownerId = await _profilesFacade.FetchOwnerIdByUserId(user.Id);
+        if (ownerId == 0)
             return (StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Only owners can view analytics" }), 0);
 
-        var equipment = await _equipmentRepository.FindByIdAsync(equipmentId);
-        if (equipment == null)
+        var equipmentExists = await _equipmentFacade.EquipmentExists(equipmentId);
+        if (!equipmentExists)
             return (NotFound(new { message = "Equipment not found" }), 0);
 
-        if (equipment.OwnerId != ownerProfile.Id)
+        var isOwnedByUser = await _equipmentFacade.IsEquipmentOwnedBy(equipmentId, ownerId);
+        if (!isOwnedByUser)
             return (StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "You don't have permission to view this equipment's analytics" }), 0);
 
-        return (null, ownerProfile.Id);
+        return (null, equipmentId);
     }
 
     /// <summary>
@@ -119,14 +120,14 @@ public class AdvancedAnalyticsController : ControllerBase
 
         try
         {
-            var equipment = await _equipmentRepository.FindByIdAsync(equipmentId);
+            var tempRange = await _equipmentFacade.GetEquipmentOptimalTemperatureRange(equipmentId);
             var readings = await _analyticsRepository.FindTemperatureReadingsByEquipmentIdAsync(equipmentId, hours);
 
             var readingsList = readings.ToList();
             var anomaly = EquipmentAnalytics.DetectAnomalies(
                 readingsList,
-                equipment!.OptimalTemperatureMin,
-                equipment.OptimalTemperatureMax
+                tempRange!.Value.minTemp,
+                tempRange.Value.maxTemp
             );
 
             return Ok(anomaly);
@@ -208,7 +209,7 @@ public class AdvancedAnalyticsController : ControllerBase
 
         try
         {
-            var equipment = await _equipmentRepository.FindByIdAsync(equipmentId);
+            var equipmentData = await _equipmentFacade.GetEquipmentMaintenanceData(equipmentId);
             var cutoff = DateTimeOffset.UtcNow.AddDays(-days);
             var readings = await _analyticsRepository.FindTemperatureReadingsByDateRangeAsync(
                 equipmentId,
@@ -218,9 +219,9 @@ public class AdvancedAnalyticsController : ControllerBase
 
             var forecast = EquipmentAnalytics.ForecastMaintenance(
                 readings.ToList(),
-                equipment!.InstallationDate,
-                equipment.OptimalTemperatureMin,
-                equipment.OptimalTemperatureMax
+                equipmentData!.Value.installationDate,
+                equipmentData.Value.minTemp,
+                equipmentData.Value.maxTemp
             );
 
             return Ok(forecast);
