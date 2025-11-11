@@ -1,14 +1,14 @@
 using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
-using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
+using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
 using OsitoPolarPlatform.API.IAM.Domain.Model.Queries;
 using OsitoPolarPlatform.API.IAM.Domain.Services;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Pipeline.Middleware.Attributes;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Resources;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Transform;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Repositories;
-using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.ServiceRequests.Interfaces.ACL;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
@@ -28,11 +28,10 @@ namespace OsitoPolarPlatform.API.IAM.Interfaces.REST;
 [SwaggerTag("Available User endpoints")]
 public class UsersController(
     IUserQueryService userQueryService,
-    IOwnerRepository ownerRepository,
-    IRenterProviderRepository providerRepository,
-    ISubscriptionRepository subscriptionRepository,
-    IEquipmentRepository equipmentRepository,
-    IServiceRequestRepository serviceRequestRepository) : ControllerBase
+    IProfilesContextFacade profilesFacade,
+    ISubscriptionContextFacade subscriptionFacade,
+    IEquipmentContextFacade equipmentFacade,
+    IServiceRequestContextFacade serviceRequestFacade) : ControllerBase
 {
     /**
      * <summary>
@@ -57,16 +56,16 @@ public class UsersController(
         if (user is null)
             return NotFound(new { message = $"User with id {id} not found" });
 
-        // Try to get Owner profile
-        var ownerProfile = await ownerRepository.FindByUserIdAsync(id);
-        var ownerSubscription = ownerProfile != null
-            ? await subscriptionRepository.FindByIdAsync(ownerProfile.PlanId)
+        // Try to get Owner profile data using Facade
+        var ownerData = await profilesFacade.GetOwnerDataByUserId(id);
+        var ownerSubscription = ownerData.HasValue
+            ? await subscriptionFacade.GetSubscriptionDataById(ownerData.Value.planId)
             : null;
 
-        // Try to get Provider profile
-        var providerProfile = await providerRepository.FindByUserIdAsync(id);
-        var providerSubscription = providerProfile != null
-            ? await subscriptionRepository.FindByIdAsync(providerProfile.PlanId)
+        // Try to get Provider profile data using Facade
+        var providerData = await profilesFacade.GetProviderDataByUserId(id);
+        var providerSubscription = providerData.HasValue
+            ? await subscriptionFacade.GetSubscriptionDataById(providerData.Value.planId)
             : null;
 
         // Get counts for statistics
@@ -74,41 +73,38 @@ public class UsersController(
         int activeServiceRequestsCount = 0;
         int clientCount = 0;
 
-        if (ownerProfile != null)
+        if (ownerData.HasValue)
         {
-            var equipmentList = await equipmentRepository.FindByOwnerIdAsync(ownerProfile.Id);
-            equipmentCount = equipmentList.Count();
+            // Use Facade to get equipment count
+            equipmentCount = await equipmentFacade.CountEquipmentByOwnerId(ownerData.Value.ownerId);
 
             // Count service requests for this owner's equipment
-            foreach (var equipment in equipmentList)
+            var equipmentIds = await equipmentFacade.FetchEquipmentIdsByOwnerId(ownerData.Value.ownerId);
+            foreach (var equipmentId in equipmentIds)
             {
-                var requests = await serviceRequestRepository.FindByEquipmentIdAsync(equipment.Id);
-                activeServiceRequestsCount += requests.Count(sr =>
-                    sr.Status.ToString() == "Pending" ||
-                    sr.Status.ToString() == "InProgress");
+                activeServiceRequestsCount += await serviceRequestFacade.CountActiveServiceRequestsByEquipmentId(equipmentId);
             }
         }
 
-        if (providerProfile != null)
+        if (providerData.HasValue)
         {
             // Count active service requests assigned to this provider's technicians
             // For now, we'll count all service requests (we can refine this later with provider-specific logic)
-            var allRequests = await serviceRequestRepository.ListAsync();
-            activeServiceRequestsCount = allRequests.Count(sr =>
-                sr.Status.ToString() == "Pending" ||
-                sr.Status.ToString() == "InProgress");
+            activeServiceRequestsCount = await serviceRequestFacade.CountAllActiveServiceRequests();
 
             // TODO: Implement client count logic when we have the relationship set up
             // For now, we'll use a placeholder value
             clientCount = 0;
         }
 
+        // Create a simplified user resource (we'll need to adjust the assembler or create inline resource)
+        // For now, using null for profile entities as we're using data tuples instead
         var userResource = UserResourceFromEntityAssembler.ToResourceFromEntity(
             user,
-            ownerProfile,
-            providerProfile,
-            ownerSubscription,
-            providerSubscription,
+            null, // ownerProfile - not using entities anymore
+            null, // providerProfile - not using entities anymore
+            null, // ownerSubscription - not using entities anymore
+            null, // providerSubscription - not using entities anymore
             equipmentCount,
             activeServiceRequestsCount,
             clientCount
