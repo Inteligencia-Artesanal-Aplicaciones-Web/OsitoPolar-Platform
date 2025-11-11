@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
-using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
 
 namespace OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST.Controllers;
 
@@ -16,7 +16,7 @@ namespace OsitoPolarPlatform.API.EquipmentManagement.Interfaces.REST.Controllers
 public class MaintenanceNotificationsController : ControllerBase
 {
     private readonly IEquipmentRepository _equipmentRepository;
-    private readonly NotificationGeneratorService _notificationGenerator;
+    private readonly INotificationContextFacade _notificationFacade;
     private readonly ILogger<MaintenanceNotificationsController> _logger;
 
     // Default maintenance interval in days (can be customized per equipment type later)
@@ -25,11 +25,11 @@ public class MaintenanceNotificationsController : ControllerBase
 
     public MaintenanceNotificationsController(
         IEquipmentRepository equipmentRepository,
-        NotificationGeneratorService notificationGenerator,
+        INotificationContextFacade notificationFacade,
         ILogger<MaintenanceNotificationsController> logger)
     {
         _equipmentRepository = equipmentRepository;
-        _notificationGenerator = notificationGenerator;
+        _notificationFacade = notificationFacade;
         _logger = logger;
     }
 
@@ -88,11 +88,13 @@ public class MaintenanceNotificationsController : ControllerBase
                 // Send notification if maintenance is due within threshold
                 if (daysUntilMaintenance <= REMINDER_THRESHOLD_DAYS && daysUntilMaintenance >= 0)
                 {
-                    await _notificationGenerator.NotifyMaintenanceReminder(
+                    var message = daysUntilMaintenance == 0
+                        ? $"Maintenance overdue for {equipment.Name}"
+                        : $"Maintenance due in {daysUntilMaintenance} days for {equipment.Name}";
+                    await _notificationFacade.CreateInAppNotification(
                         equipment.OwnerId,
-                        equipment.Id,
-                        equipment.Name,
-                        daysUntilMaintenance);
+                        "⚠️ Maintenance Reminder",
+                        message);
 
                     notificationsSent++;
 
@@ -107,11 +109,11 @@ public class MaintenanceNotificationsController : ControllerBase
                         equipment.Id, equipment.Name, Math.Abs(daysUntilMaintenance));
 
                     // Send urgent notification for overdue maintenance
-                    await _notificationGenerator.NotifyMaintenanceReminder(
+                    var message = $"Maintenance overdue for {equipment.Name}";
+                    await _notificationFacade.CreateInAppNotification(
                         equipment.OwnerId,
-                        equipment.Id,
-                        equipment.Name,
-                        0); // 0 indicates overdue
+                        "⚠️ Maintenance Reminder",
+                        message);
 
                     notificationsSent++;
                 }
