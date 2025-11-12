@@ -346,7 +346,7 @@ public class AuthenticationController(
                 await profilesFacade.CreateProviderProfile(
                     user.Id, request.CompanyName ?? "Company", request.FirstName, request.LastName, request.Email,
                     request.Street, request.Number, request.City, request.PostalCode, request.Country,
-                    planId, maxClients, request.TaxId);
+                    planId, maxClients, request.TaxId ?? "");
             }
 
             // Save all changes to database
@@ -370,7 +370,7 @@ public class AuthenticationController(
                     <p>Best regards,<br/>OsitoPolar Team</p>
                 ";
 
-                await notificationFacade.SendEmailNotification(request.Email, emailSubject, emailBody);
+                await notificationFacade.SendEmailNotification(request.Email, $"{request.FirstName} {request.LastName}", emailSubject, emailBody);
             }
             catch (Exception emailEx)
             {

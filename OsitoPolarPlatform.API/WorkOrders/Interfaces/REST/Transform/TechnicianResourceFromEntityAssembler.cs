@@ -1,7 +1,7 @@
-using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Entities;
-using OsitoPolarPlatform.API.bc_technicians.Interfaces.REST.Resources;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Entities;
+using OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Resources;
 
-namespace OsitoPolarPlatform.API.bc_technicians.Interfaces.REST.Transform;
+namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Transform;
 
 public static class TechnicianResourceFromEntityAssembler
 {

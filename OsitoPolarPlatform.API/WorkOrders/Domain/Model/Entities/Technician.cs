@@ -1,6 +1,6 @@
-using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Commands;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
 
-namespace OsitoPolarPlatform.API.bc_technicians.Domain.Model.Entities;
+namespace OsitoPolarPlatform.API.WorkOrders.Domain.Model.Entities;
 
 public class Technician
 {
@@ -12,7 +12,7 @@ public class Technician
     public decimal Rating { get; set; }
     public string Availability { get; set; }
     public int CompanyId { get; set; }
-    
+
     public Technician()
     {
         Name = string.Empty;
@@ -24,7 +24,7 @@ public class Technician
         Rating = 0.0m;
     }
 
-    
+
     public Technician(string name, string specialization, string phone, string email, string availability, int companyId)
     {
         Name = name;
@@ -35,10 +35,10 @@ public class Technician
         CompanyId = companyId;
         Rating = 0.0m;
     }
-    
+
     public Technician(CreateTechnicianCommand command)
         : this(command.Name, command.Specialization, command.Phone, command.Email, command.Availability, command.CompanyId)
     {
     }
-    
+
 }

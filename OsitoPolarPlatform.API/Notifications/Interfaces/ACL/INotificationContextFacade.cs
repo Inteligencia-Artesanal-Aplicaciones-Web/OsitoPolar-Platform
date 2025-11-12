@@ -9,10 +9,11 @@ public interface INotificationContextFacade
     /// Send email notification
     /// </summary>
     /// <param name="to">Recipient email</param>
+    /// <param name="recipientName">Recipient name (optional)</param>
     /// <param name="subject">Email subject</param>
     /// <param name="body">Email body (HTML or plain text)</param>
     /// <returns>True if email sent successfully, false otherwise</returns>
-    Task<bool> SendEmailNotification(string to, string subject, string body);
+    Task<bool> SendEmailNotification(string to, string recipientName, string subject, string body);
 
     /// <summary>
     /// Create in-app notification for a user

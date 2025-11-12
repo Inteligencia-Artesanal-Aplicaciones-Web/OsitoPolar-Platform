@@ -46,4 +46,11 @@ public interface ISubscriptionContextFacade
     /// <param name="planId">Plan ID</param>
     /// <returns>Tuple with (maxEquipment, maxClients) or null if not found</returns>
     Task<(int maxEquipment, int maxClients)?> GetSubscriptionLimits(int planId);
+
+    /// <summary>
+    /// Get full subscription data including all fields
+    /// </summary>
+    /// <param name="planId">Plan ID</param>
+    /// <returns>Tuple with all subscription fields or null if not found</returns>
+    Task<(int planId, string planName, decimal price, string currency, int? maxEquipment, int? maxClients)?> GetFullSubscriptionData(int planId);
 }

@@ -1,4 +1,4 @@
-namespace OsitoPolarPlatform.API.bc_technicians.Interfaces.REST.Resources;
+namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Resources;
 
 public record TechnicianResource(
     int Id,

@@ -35,4 +35,15 @@ public class WorkOrderContextFacade(IWorkOrderRepository workOrderRepository) : 
         return (workOrder.Id, workOrder.WorkOrderNumber, workOrder.Title,
                 workOrder.Status.ToString(), workOrder.Cost, workOrder.ServiceRequestId);
     }
+
+    public async Task<double> GetTechnicianAverageRating(int technicianId)
+    {
+        var allWorkOrders = await workOrderRepository.ListAsync();
+        var ratings = allWorkOrders
+            .Where(wo => wo.AssignedTechnicianId == technicianId && wo.CustomerFeedbackRating.HasValue)
+            .Select(wo => wo.CustomerFeedbackRating!.Value)
+            .ToList();
+
+        return ratings.Any() ? ratings.Average() : 0.0;
+    }
 }

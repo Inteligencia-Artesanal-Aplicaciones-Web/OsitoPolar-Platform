@@ -1,12 +1,12 @@
 using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
-using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Queries;
-using OsitoPolarPlatform.API.bc_technicians.Domain.Services;
-using OsitoPolarPlatform.API.bc_technicians.Interfaces.REST.Resources;
-using OsitoPolarPlatform.API.bc_technicians.Interfaces.REST.Transform;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Queries;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
+using OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Resources;
+using OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Transform;
 using Swashbuckle.AspNetCore.Annotations;
 
-namespace OsitoPolarPlatform.API.bc_technicians.Interfaces.REST;
+namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST;
 
 [ApiController]
 [Route("api/v1/[controller]")]

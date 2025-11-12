@@ -1,7 +1,7 @@
-using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Entities;
-using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Queries;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Entities;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Queries;
 
-namespace OsitoPolarPlatform.API.bc_technicians.Domain.Services;
+namespace OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 
 public interface ITechnicianQueryService
 {

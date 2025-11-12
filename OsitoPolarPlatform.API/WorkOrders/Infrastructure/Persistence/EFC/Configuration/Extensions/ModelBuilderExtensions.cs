@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Aggregates;
-using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates; 
-using OsitoPolarPlatform.API.bc_technicians.Domain.Model.Entities; 
+using OsitoPolarPlatform.API.WorkOrders.Domain.Model.Entities;
+using OsitoPolarPlatform.API.ServiceRequests.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Model.Aggregates; 
 
 
@@ -66,11 +66,20 @@ public static class ModelBuilderExtensions
             .OnDelete(DeleteBehavior.SetNull); 
         
         builder.Entity<WorkOrder>()
-            .HasOne<Equipment>() 
-            .WithMany() 
-            .HasForeignKey(wo => wo.EquipmentId) 
-            .IsRequired(); 
-            
-                                                  
+            .HasOne<Equipment>()
+            .WithMany()
+            .HasForeignKey(wo => wo.EquipmentId)
+            .IsRequired();
+
+        // Technician entity configuration
+        builder.Entity<Technician>().HasKey(t => t.Id);
+        builder.Entity<Technician>().Property(t => t.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<Technician>().Property(t => t.Name).IsRequired().HasMaxLength(100);
+        builder.Entity<Technician>().Property(t => t.Specialization).IsRequired().HasMaxLength(100);
+        builder.Entity<Technician>().Property(t => t.Phone).IsRequired().HasMaxLength(20);
+        builder.Entity<Technician>().Property(t => t.Email).IsRequired().HasMaxLength(100);
+        builder.Entity<Technician>().Property(t => t.Rating).HasColumnType("decimal(3,2)");
+        builder.Entity<Technician>().Property(t => t.Availability).IsRequired().HasMaxLength(50);
+        builder.Entity<Technician>().Property(t => t.CompanyId).IsRequired();
     }
 }

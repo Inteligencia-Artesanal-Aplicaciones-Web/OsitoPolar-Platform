@@ -32,4 +32,11 @@ public interface IWorkOrderContextFacade
     /// <param name="workOrderId">Work Order ID</param>
     /// <returns>Tuple with (id, workOrderNumber, title, status, cost, serviceRequestId) or null if not found</returns>
     Task<(int id, string workOrderNumber, string title, string status, decimal? cost, int? serviceRequestId)?> GetWorkOrderData(int workOrderId);
+
+    /// <summary>
+    /// Get technician average rating from work order feedback
+    /// </summary>
+    /// <param name="technicianId">Technician ID</param>
+    /// <returns>Average rating (0.0 if no ratings found)</returns>
+    Task<double> GetTechnicianAverageRating(int technicianId);
 }

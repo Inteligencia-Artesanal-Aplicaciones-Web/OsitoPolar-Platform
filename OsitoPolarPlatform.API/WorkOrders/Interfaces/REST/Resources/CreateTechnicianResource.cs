@@ -1,14 +1,4 @@
-namespace OsitoPolarPlatform.API.bc_technicians.Interfaces.REST.Resources;
-/*
-public record CreateTechnicianResource(
-    string Name,
-    string Specialization,
-    string Phone,
-    string Email,
-    string Availability,
-    int CompanyId
-);
-*/
+namespace OsitoPolarPlatform.API.WorkOrders.Interfaces.REST.Resources;
 
 public class CreateTechnicianResource
 {
@@ -18,5 +8,4 @@ public class CreateTechnicianResource
     public string Email { get; set; } = string.Empty;
     public string Availability { get; set; } = string.Empty;
     public int CompanyId { get; set; }
-
 }

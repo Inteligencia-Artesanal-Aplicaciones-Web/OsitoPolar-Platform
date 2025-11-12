@@ -17,11 +17,11 @@ public class NotificationContextFacade(
     IInAppNotificationRepository inAppNotificationRepository,
     IUnitOfWork unitOfWork) : INotificationContextFacade
 {
-    public async Task<bool> SendEmailNotification(string to, string subject, string body)
+    public async Task<bool> SendEmailNotification(string to, string recipientName, string subject, string body)
     {
         try
         {
-            await emailCommandService.SendRawEmailAsync(to, "", subject, body);
+            await emailCommandService.SendRawEmailAsync(to, recipientName ?? "", subject, body);
             return true;
         }
         catch

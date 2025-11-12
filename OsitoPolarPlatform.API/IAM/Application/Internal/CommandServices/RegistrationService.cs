@@ -3,11 +3,10 @@ using OsitoPolarPlatform.API.IAM.Domain.Model.Aggregates;
 using OsitoPolarPlatform.API.IAM.Domain.Repositories;
 using OsitoPolarPlatform.API.IAM.Domain.Services;
 using OsitoPolarPlatform.API.IAM.Interfaces.REST.Resources;
-using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
-using OsitoPolarPlatform.API.Profiles.Domain.Model.Aggregates;
-using OsitoPolarPlatform.API.Profiles.Domain.Repositories;
+using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
+using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
+using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
 using OsitoPolarPlatform.API.Shared.Domain.Repositories;
-using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Services;
 
 namespace OsitoPolarPlatform.API.IAM.Application.Internal.CommandServices;
@@ -18,31 +17,28 @@ namespace OsitoPolarPlatform.API.IAM.Application.Internal.CommandServices;
 public class RegistrationService : IRegistrationService
 {
     private readonly IUserRepository _userRepository;
-    private readonly IOwnerRepository _ownerRepository;
-    private readonly IRenterProviderRepository _providerRepository;
-    private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly IProfilesContextFacade _profilesFacade;
+    private readonly ISubscriptionContextFacade _subscriptionFacade;
+    private readonly INotificationContextFacade _notificationFacade;
     private readonly IPaymentProvider _paymentProvider;
     private readonly IHashingService _hashingService;
-    private readonly IEmailCommandService _emailCommandService;
     private readonly IUnitOfWork _unitOfWork;
 
     public RegistrationService(
         IUserRepository userRepository,
-        IOwnerRepository ownerRepository,
-        IRenterProviderRepository providerRepository,
-        ISubscriptionRepository subscriptionRepository,
+        IProfilesContextFacade profilesFacade,
+        ISubscriptionContextFacade subscriptionFacade,
+        INotificationContextFacade notificationFacade,
         IPaymentProvider paymentProvider,
         IHashingService hashingService,
-        IEmailCommandService emailCommandService,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
-        _ownerRepository = ownerRepository;
-        _providerRepository = providerRepository;
-        _subscriptionRepository = subscriptionRepository;
+        _profilesFacade = profilesFacade;
+        _subscriptionFacade = subscriptionFacade;
+        _notificationFacade = notificationFacade;
         _paymentProvider = paymentProvider;
         _hashingService = hashingService;
-        _emailCommandService = emailCommandService;
         _unitOfWork = unitOfWork;
     }
 
@@ -63,8 +59,8 @@ public class RegistrationService : IRegistrationService
             }
 
             // 2. Validate plan ID matches user type
-            var subscription = await _subscriptionRepository.FindByIdAsync(request.PlanId);
-            if (subscription == null)
+            var subscriptionData = await _subscriptionFacade.GetFullSubscriptionData(request.PlanId);
+            if (subscriptionData == null)
             {
                 return new RegisterWithPaymentResponse
                 {
@@ -74,8 +70,8 @@ public class RegistrationService : IRegistrationService
             }
 
             // Validate plan type matches user type
-            var isOwnerPlan = subscription.MaxEquipment.HasValue;
-            var isProviderPlan = subscription.MaxClients.HasValue;
+            var isOwnerPlan = subscriptionData.Value.maxEquipment.HasValue;
+            var isProviderPlan = subscriptionData.Value.maxClients.HasValue;
 
             if (request.UserType == "Owner" && !isOwnerPlan)
             {
@@ -106,10 +102,10 @@ public class RegistrationService : IRegistrationService
             }
 
             // 4. Check if email is already used
-            var existingOwner = await _ownerRepository.FindByEmailAsync(request.Email);
-            var existingProvider = await _providerRepository.FindByEmailAsync(request.Email);
+            var ownerEmailExists = await _profilesFacade.CheckOwnerEmailExists(request.Email);
+            var providerEmailExists = await _profilesFacade.CheckProviderEmailExists(request.Email);
 
-            if (existingOwner != null || existingProvider != null)
+            if (ownerEmailExists || providerEmailExists)
             {
                 return new RegisterWithPaymentResponse
                 {
@@ -119,13 +115,13 @@ public class RegistrationService : IRegistrationService
             }
 
             // 5. Process payment with Stripe
-            Console.WriteLine($"[Registration] Processing payment of {subscription.Price.Amount} {subscription.Price.Currency}");
+            Console.WriteLine($"[Registration] Processing payment of {subscriptionData.Value.price} {subscriptionData.Value.currency}");
 
             var paymentRequest = new PaymentRequest
             {
-                Amount = subscription.Price.Amount,
-                Currency = subscription.Price.Currency,
-                Description = $"{subscription.PlanName} subscription for {request.Username}",
+                Amount = subscriptionData.Value.price,
+                Currency = subscriptionData.Value.currency,
+                Description = $"{subscriptionData.Value.planName} subscription for {request.Username}",
                 CustomerEmail = request.Email,
                 CustomerName = $"{request.FirstName} {request.LastName}",
                 PaymentToken = request.PaymentToken,
@@ -134,7 +130,7 @@ public class RegistrationService : IRegistrationService
                     { "username", request.Username },
                     { "userType", request.UserType },
                     { "planId", request.PlanId.ToString() },
-                    { "planName", subscription.PlanName }
+                    { "planName", subscriptionData.Value.planName }
                 }
             };
 
@@ -168,7 +164,7 @@ public class RegistrationService : IRegistrationService
 
             if (request.UserType == "Owner")
             {
-                var owner = new Owner(
+                profileId = await _profilesFacade.CreateOwnerProfile(
                     user.Id,
                     request.FirstName,
                     request.LastName,
@@ -179,13 +175,10 @@ public class RegistrationService : IRegistrationService
                     request.PostalCode,
                     request.Country,
                     request.PlanId,
-                    subscription.MaxEquipment!.Value
+                    subscriptionData.Value.maxEquipment!.Value
                 );
 
-                await _ownerRepository.AddAsync(owner);
                 await _unitOfWork.CompleteAsync();
-                profileId = owner.Id;
-
                 Console.WriteLine($"[Registration] Owner profile created with ID: {profileId}");
             }
             else // Provider
@@ -199,7 +192,7 @@ public class RegistrationService : IRegistrationService
                     };
                 }
 
-                var provider = new RenterProvider(
+                profileId = await _profilesFacade.CreateProviderProfile(
                     user.Id,
                     request.CompanyName,
                     request.FirstName,
@@ -211,14 +204,11 @@ public class RegistrationService : IRegistrationService
                     request.PostalCode,
                     request.Country,
                     request.PlanId,
-                    subscription.MaxClients!.Value,
-                    request.TaxId
+                    subscriptionData.Value.maxClients!.Value,
+                    request.TaxId ?? ""
                 );
 
-                await _providerRepository.AddAsync(provider);
                 await _unitOfWork.CompleteAsync();
-                profileId = provider.Id;
-
                 Console.WriteLine($"[Registration] Provider profile created with ID: {profileId}");
             }
 
@@ -248,7 +238,7 @@ public class RegistrationService : IRegistrationService
         <div class=""content"">
             <h2>Hello {request.FirstName}!</h2>
             <p>Thank you for registering as a <strong>{request.UserType}</strong> with OsitoPolar.</p>
-            <p>Your subscription to <strong>{subscription.PlanName}</strong> has been activated.</p>
+            <p>Your subscription to <strong>{subscriptionData.Value.planName}</strong> has been activated.</p>
 
             <div class=""credentials"">
                 <h3>Your Login Credentials:</h3>
@@ -259,9 +249,9 @@ public class RegistrationService : IRegistrationService
 
             <p><strong>Plan Details:</strong></p>
             <ul>
-                <li>Plan: {subscription.PlanName}</li>
-                <li>Price: ${subscription.Price.Amount}/month</li>
-                {(request.UserType == "Owner" ? $"<li>Max Equipment: {subscription.MaxEquipment} units</li>" : $"<li>Max Clients: {(subscription.MaxClients == 0 ? "Unlimited" : subscription.MaxClients.ToString())}</li>")}
+                <li>Plan: {subscriptionData.Value.planName}</li>
+                <li>Price: ${subscriptionData.Value.price}/month</li>
+                {(request.UserType == "Owner" ? $"<li>Max Equipment: {subscriptionData.Value.maxEquipment} units</li>" : $"<li>Max Clients: {(subscriptionData.Value.maxClients == 0 ? "Unlimited" : subscriptionData.Value.maxClients.ToString())}</li>")}
             </ul>
 
             <p style=""text-align: center;"">
@@ -278,7 +268,7 @@ public class RegistrationService : IRegistrationService
 </body>
 </html>";
 
-                await _emailCommandService.SendRawEmailAsync(
+                await _notificationFacade.SendEmailNotification(
                     request.Email,
                     $"{request.FirstName} {request.LastName}",
                     emailSubject,

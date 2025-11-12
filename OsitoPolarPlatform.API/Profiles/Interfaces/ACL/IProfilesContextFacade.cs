@@ -171,4 +171,18 @@ public interface IProfilesContextFacade
     /// <param name="ownerId">Owner ID</param>
     /// <returns>Tuple with (firstName, lastName) or null if not found</returns>
     Task<(string firstName, string lastName)?> GetOwnerNameByOwnerId(int ownerId);
+
+    /// <summary>
+    /// Check if an owner exists with the given email
+    /// </summary>
+    /// <param name="email">Email to check</param>
+    /// <returns>True if owner exists with that email, false otherwise</returns>
+    Task<bool> CheckOwnerEmailExists(string email);
+
+    /// <summary>
+    /// Check if a provider exists with the given email
+    /// </summary>
+    /// <param name="email">Email to check</param>
+    /// <returns>True if provider exists with that email, false otherwise</returns>
+    Task<bool> CheckProviderEmailExists(string email);
 }

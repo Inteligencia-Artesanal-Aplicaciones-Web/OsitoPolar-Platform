@@ -170,4 +170,16 @@ public class ProfilesContextFacade(
 
         return (owner.Name.FirstName, owner.Name.LastName);
     }
+
+    public async Task<bool> CheckOwnerEmailExists(string email)
+    {
+        var owner = await ownerRepository.FindByEmailAsync(email);
+        return owner != null;
+    }
+
+    public async Task<bool> CheckProviderEmailExists(string email)
+    {
+        var provider = await renterProviderRepository.FindByEmailAsync(email);
+        return provider != null;
+    }
 }

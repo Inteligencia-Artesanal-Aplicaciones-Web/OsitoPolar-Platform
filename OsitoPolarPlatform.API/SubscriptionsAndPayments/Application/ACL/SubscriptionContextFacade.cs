@@ -59,4 +59,12 @@ public class SubscriptionContextFacade(
 
         return (plan.MaxEquipment ?? 10, plan.MaxClients ?? 50);
     }
+
+    public async Task<(int planId, string planName, decimal price, string currency, int? maxEquipment, int? maxClients)?> GetFullSubscriptionData(int planId)
+    {
+        var plan = await subscriptionRepository.FindByIdAsync(planId);
+        if (plan == null) return null;
+
+        return (plan.Id, plan.PlanName, plan.Price.Amount, plan.Price.Currency, plan.MaxEquipment, plan.MaxClients);
+    }
 }

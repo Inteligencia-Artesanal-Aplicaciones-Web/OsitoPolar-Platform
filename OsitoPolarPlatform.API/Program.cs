@@ -9,13 +9,13 @@ using OsitoPolarPlatform.API.Analytics.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.Analytics.Domain.Repositories;
 using OsitoPolarPlatform.API.Analytics.Domain.Services;
 using OsitoPolarPlatform.API.Analytics.Infrastructure.Persistence.EFC.Repositories;
-using OsitoPolarPlatform.API.bc_technicians.Application.Internal.CommandServices;
-using OsitoPolarPlatform.API.bc_technicians.Application.Internal.QueryServices;
-using OsitoPolarPlatform.API.bc_technicians.Domain.Repositories;
-using OsitoPolarPlatform.API.bc_technicians.Domain.Services;
+using OsitoPolarPlatform.API.WorkOrders.Application.Internal.CommandServices;
+using OsitoPolarPlatform.API.WorkOrders.Application.Internal.QueryServices;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
+using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.External.Configuration;
 
-using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.EquipmentManagement.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.EquipmentManagement.Domain.Repositories;
@@ -41,8 +41,6 @@ using OsitoPolarPlatform.API.ServiceRequests.Application.ACL;
 using OsitoPolarPlatform.API.ServiceRequests.Interfaces.ACL;
 using OsitoPolarPlatform.API.WorkOrders.Application.ACL;
 using OsitoPolarPlatform.API.WorkOrders.Interfaces.ACL;
-using OsitoPolarPlatform.API.bc_technicians.Application.ACL;
-using OsitoPolarPlatform.API.bc_technicians.Interfaces.ACL;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.ACL;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
 using OsitoPolarPlatform.API.Notifications.Application.ACL;
@@ -67,7 +65,6 @@ using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Configurati
 using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Configuration;
-using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Notifications.Infrastructure.Persistence.EFC.Configuration;
 using OsitoPolarPlatform.API.Analytics.Infrastructure.Persistence.EFC.Configuration;
@@ -75,11 +72,6 @@ using OsitoPolarPlatform.API.Shared.Domain.Repositories;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Interfaces.ASP.Configuration;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Mediator.Cortex.Configuration;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Repositories;
-using OsitoPolarPlatform.API.WorkOrders.Application.Internal.CommandServices;
-using OsitoPolarPlatform.API.WorkOrders.Application.Internal.QueryServices;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Repositories;
-using OsitoPolarPlatform.API.WorkOrders.Domain.Services;
-using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Repositories;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.Internal.CommandServices;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Application.Internal.QueryServices;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Repositories;
@@ -191,11 +183,10 @@ builder.Services.AddScoped<IAnalyticsCommandService, AnalyticsCommandService>();
 builder.Services.AddScoped<IAnalyticsQueryService, AnalyticsQueryService>();
 builder.Services.AddScoped<IAnalyticsContextFacade, AnalyticsContextFacade>();
 
-//technicians Bounded Context
+//Technicians (merged into WorkOrders Bounded Context)
 builder.Services.AddScoped<ITechnicianRepository, TechnicianRepository>();
 builder.Services.AddScoped<ITechnicianCommandService, TechnicianCommandService>();
 builder.Services.AddScoped<ITechnicianQueryService, TechnicianQueryService>();
-builder.Services.AddScoped<ITechnicianContextFacade, TechnicianContextFacade>();
 
 //Equipment Bounded Context
 builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
@@ -341,9 +332,6 @@ builder.Services.AddDbContext<ServiceRequestsDbContext>(options =>
     options.UseMySQL(connectionString));
 
 builder.Services.AddDbContext<WorkOrdersDbContext>(options =>
-    options.UseMySQL(connectionString));
-
-builder.Services.AddDbContext<TechniciansDbContext>(options =>
     options.UseMySQL(connectionString));
 
 builder.Services.AddDbContext<SubscriptionsDbContext>(options =>

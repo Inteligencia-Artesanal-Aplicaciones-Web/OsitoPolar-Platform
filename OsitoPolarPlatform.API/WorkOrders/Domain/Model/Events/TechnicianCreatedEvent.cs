@@ -1,8 +1,8 @@
 using OsitoPolarPlatform.API.Shared.Domain.Model.Events;
 
-namespace OsitoPolarPlatform.API.bc_technicians.Domain.Events;
+namespace OsitoPolarPlatform.API.WorkOrders.Domain.Model.Events;
 
-public class TechnicianCreatedEvent(string name, string specialization, string phone, string email, string availability, int companyId) 
+public class TechnicianCreatedEvent(string name, string specialization, string phone, string email, string availability, int companyId)
     : IEvent
 {
     public string Name { get; } = name;

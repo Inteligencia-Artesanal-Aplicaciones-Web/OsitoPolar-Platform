@@ -1,4 +1,4 @@
-namespace OsitoPolarPlatform.API.bc_technicians.Domain.Model.Commands;
+namespace OsitoPolarPlatform.API.WorkOrders.Domain.Model.Commands;
 
 public record CreateTechnicianCommand(
     string Name,
