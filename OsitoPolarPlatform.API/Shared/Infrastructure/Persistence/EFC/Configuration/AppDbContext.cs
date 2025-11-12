@@ -5,7 +5,6 @@ using OsitoPolarPlatform.API.EquipmentManagement.Infrastructure.Persistence.EFC.
 using OsitoPolarPlatform.API.ServiceRequests.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Shared.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.WorkOrders.Infrastructure.Persistence.EFC.Configuration.Extensions;
-using OsitoPolarPlatform.API.bc_technicians.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.IAM.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.Profiles.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using OsitoPolarPlatform.API.SubscriptionsAndPayments.Infrastructure.Persistence.EFC.Configuration.Extensions;
@@ -44,10 +43,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         
         // Apply ALL context configurations FIRST (in order)
         builder.ApplyEquipmentConfiguration();       // Equipment Management
-        builder.ApplyAnalyticsConfiguration();       // Analytics 
+        builder.ApplyAnalyticsConfiguration();       // Analytics
         builder.ApplyServiceRequestConfiguration();  // Service Requests
-        builder.ApplyWorkOrderConfiguration();       // Work Orders
-        builder.ApplyTechnicianConfiguration();      // Technicians
+        builder.ApplyWorkOrderConfiguration();       // Work Orders (includes Technicians)
         builder.ApplySubscriptionsConfiguration();  // Subscriptions and Payments
         builder.ApplyNotificationsConfiguration();  // Notifications
         // Apply snake_case naming convention LAST (only once!)
