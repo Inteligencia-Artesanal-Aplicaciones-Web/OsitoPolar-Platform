@@ -47,6 +47,15 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Content Include="Notifications/Infrastructure/Templates/**/*.html">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+
+
+  
+    <ItemGroup>
       <_ContentIncludedByDefault Remove="tests\bin\Debug\net9.0\appsettings.Development.json" />
       <_ContentIncludedByDefault Remove="tests\bin\Debug\net9.0\appsettings.json" />
       <_ContentIncludedByDefault Remove="tests\bin\Debug\net9.0\appsettings.Production.json" />
